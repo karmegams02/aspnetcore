@@ -459,6 +459,26 @@ public class EventCallbackFactoryBinderExtensionsTest
     }
 
     [Fact]
+    public async Task CreateBinder_DateTime_Format_EmptyString_AsyncVersion_DoesNotResetToMinValue()
+    {
+        // Arrange - Async version of the empty string handling fix
+        var originalValue = new DateTime(2023, 6, 15);
+        var value = originalValue;
+        var component = new EventCountingComponent();
+        Func<DateTime, Task> setter = (v) => { value = v; return Task.CompletedTask; };
+        var format = "yyyy-MM-dd";
+
+        var binder = EventCallback.Factory.CreateBinder(component, setter, value, format);
+
+        // Act - User clears the date input
+        await binder.InvokeAsync(new ChangeEventArgs() { Value = string.Empty });
+
+        // Assert - Async setter version should also preserve value
+        Assert.NotEqual(DateTime.MinValue, value);
+        Assert.Equal(originalValue, value);
+    }
+
+    [Fact]
     public async Task CreateBinder_NullableDateTime_Format()
     {
         // Arrange
@@ -476,6 +496,27 @@ public class EventCallbackFactoryBinderExtensionsTest
 
         Assert.Equal(expectedValue, value);
         Assert.Equal(1, component.Count);
+    }
+
+    [Fact]
+    public async Task CreateBinder_NullableDateTime_Format_EmptyString_SetsToNull()
+    {
+        // Arrange - when using a nullable DateTime with format-based binding,
+        // an empty string should set the value to null
+        var originalValue = (DateTime?)new DateTime(2023, 6, 15);
+        var value = originalValue;
+        var component = new EventCountingComponent();
+        Action<DateTime?> setter = (v) => value = v;
+        var format = "yyyy-MM-dd";
+
+        var binder = EventCallback.Factory.CreateBinder(component, setter, value, format);
+
+        // Act - User clears the input (empty string)
+        await binder.InvokeAsync(new ChangeEventArgs() { Value = string.Empty });
+
+        // Assert - Value should be set to null
+        Assert.Null(value);
+        Assert.Equal(1, component.Count); // Setter should have been called
     }
 
     [Fact]
