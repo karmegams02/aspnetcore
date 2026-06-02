@@ -1454,13 +1454,25 @@ public static class EventCallbackFactoryBinderExtensions
             //   @bind:event="oninput"
             // - If the diff mechanism didn't revert to the previous good value, the user wouldn't necessarily
             //   know that the data they are submitting is different from what they think they've typed
+            //
+            // For format-based parsing of non-nullable types (like DateTime), we should only update if the
+            // conversion succeeded. Setting to default(DateTime) (MinValue) can cause invalid date representations
+            // in HTML5 inputs, so we preserve the previous value instead.
             if (converted)
             {
                 setter(value!);
             }
             else if (string.Empty.Equals(e.Value))
             {
-                setter(default!);
+                // Only set to default for string empty values if T is nullable or string.
+                // For format-based non-nullable types like DateTime, don't update (keep previous value)
+                // to avoid resetting to invalid defaults like DateTime.MinValue.
+                var typeInfo = typeof(T);
+                var isNullable = typeInfo.IsGenericType && typeInfo.GetGenericTypeDefinition() == typeof(Nullable<>);
+                if (typeInfo == typeof(string) || isNullable)
+                {
+                    setter(default!);
+                }
             }
         };
         return factory.Create<ChangeEventArgs>(receiver, callback);
@@ -1498,13 +1510,25 @@ public static class EventCallbackFactoryBinderExtensions
             //   @bind:event="oninput"
             // - If the diff mechanism didn't revert to the previous good value, the user wouldn't necessarily
             //   know that the data they are submitting is different from what they think they've typed
+            //
+            // For format-based parsing of non-nullable types (like DateTime), we should only update if the
+            // conversion succeeded. Setting to default(DateTime) (MinValue) can cause invalid date representations
+            // in HTML5 inputs, so we preserve the previous value instead.
             if (converted)
             {
                 await setter(value!);
             }
             else if (string.Empty.Equals(e.Value))
             {
-                await setter(default!);
+                // Only set to default for string empty values if T is nullable or string.
+                // For format-based non-nullable types like DateTime, don't update (keep previous value)
+                // to avoid resetting to invalid defaults like DateTime.MinValue.
+                var typeInfo = typeof(T);
+                var isNullable = typeInfo.IsGenericType && typeInfo.GetGenericTypeDefinition() == typeof(Nullable<>);
+                if (typeInfo == typeof(string) || isNullable)
+                {
+                    await setter(default!);
+                }
             }
         };
         return factory.Create<ChangeEventArgs>(receiver, callback);

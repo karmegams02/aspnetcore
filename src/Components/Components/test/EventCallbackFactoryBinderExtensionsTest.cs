@@ -439,6 +439,46 @@ public class EventCallbackFactoryBinderExtensionsTest
     }
 
     [Fact]
+    public async Task CreateBinder_DateTime_Format_EmptyString_DoesNotResetToMinValue()
+    {     
+        // For non-nullable format-based types like DateTime, preserve the previous value instead.
+        var originalValue = new DateTime(2023, 6, 15);
+        var value = originalValue;
+        var component = new EventCountingComponent();
+        Action<DateTime> setter = (v) => value = v;
+        var format = "yyyy-MM-dd"; // HTML5 date input format
+
+        var binder = EventCallback.Factory.CreateBinder(component, setter, value, format);
+
+        // Act - User clears the date input (empty string)
+        await binder.InvokeAsync(new ChangeEventArgs() { Value = string.Empty });
+
+        // Assert Value must NOT change to DateTime.MinValue
+        Assert.NotEqual(DateTime.MinValue, value);
+        Assert.Equal(originalValue, value);
+    }
+
+    [Fact]
+    public async Task CreateBinder_DateTime_Format_EmptyString_AsyncVersion_DoesNotResetToMinValue()
+    {
+        // Arrange - Async version of the empty string handling fix
+        var originalValue = new DateTime(2023, 6, 15);
+        var value = originalValue;
+        var component = new EventCountingComponent();
+        Func<DateTime, Task> setter = (v) => { value = v; return Task.CompletedTask; };
+        var format = "yyyy-MM-dd";
+
+        var binder = EventCallback.Factory.CreateBinder(component, setter, value, format);
+
+        // Act - User clears the date input
+        await binder.InvokeAsync(new ChangeEventArgs() { Value = string.Empty });
+
+        // Assert - Async setter version should also preserve value
+        Assert.NotEqual(DateTime.MinValue, value);
+        Assert.Equal(originalValue, value);
+    }
+
+    [Fact]
     public async Task CreateBinder_NullableDateTime_Format()
     {
         // Arrange
