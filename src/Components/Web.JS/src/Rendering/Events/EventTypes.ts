@@ -166,11 +166,17 @@ registerBuiltInEventType(['wheel', 'mousewheel'], {
   createEventArgs: e => parseWheelEvent(e as WheelEvent),
 });
 
-registerBuiltInEventType([
-  'cancel',
-  'close',
-  'toggle',
-], createBlankEventArgsOptions);
+registerBuiltInEventType(['toggle'], {
+  createEventArgs: (e) => {
+    return parseToggleEvent(e as ToggleEvent);
+  },
+});
+
+
+registerBuiltInEventType(
+  ['cancel', 'close'],
+  createBlankEventArgsOptions,
+);
 
 function parseChangeEvent(event: Event): ChangeEventArgs {
   const element = event.target as Element;
@@ -197,6 +203,18 @@ function parseWheelEvent(event: WheelEvent): WheelEventArgs {
     deltaY: event.deltaY,
     deltaZ: event.deltaZ,
     deltaMode: event.deltaMode,
+  };
+}
+
+interface ToggleEvent extends Event {
+  oldState: string;
+  newState: string;
+}
+
+function parseToggleEvent(event: ToggleEvent): ToggleEventArgs {
+  return {
+    oldState: event.oldState ?? '',
+    newState: event.newState ?? '',
   };
 }
 
@@ -455,6 +473,10 @@ interface PointerEventArgs extends MouseEventArgs {
   tiltY: number;
   pointerType: string;
   isPrimary: boolean;
+}
+interface ToggleEventArgs{
+  oldState: string;
+  newState: string;
 }
 
 interface ProgressEventArgs {

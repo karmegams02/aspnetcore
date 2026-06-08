@@ -123,7 +123,7 @@ namespace Microsoft.AspNetCore.Components.Web;
 [EventHandler("onscroll", typeof(EventArgs), true, true)]
 
 // <details>
-[EventHandler("ontoggle", typeof(EventArgs), true, true)]
+[EventHandler("ontoggle", typeof(ToggleEventArgs), true, true)]
 
 // <dialog>
 [EventHandler("oncancel", typeof(EventArgs), false, true)]

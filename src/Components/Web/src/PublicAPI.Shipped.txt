@@ -629,3 +629,9 @@ virtual Microsoft.AspNetCore.Components.RenderTree.WebRenderer.GetWebRendererId(
 virtual Microsoft.AspNetCore.Components.Routing.NavLink.ShouldMatch(string! uriAbsolute) -> bool
 virtual Microsoft.AspNetCore.Components.Web.Infrastructure.JSComponentInterop.AddRootComponent(string! identifier, string! domElementSelector) -> int
 virtual Microsoft.AspNetCore.Components.Web.Infrastructure.JSComponentInterop.RemoveRootComponent(int componentId) -> void
+Microsoft.AspNetCore.Components.Web.ToggleEventArgs
+Microsoft.AspNetCore.Components.Web.ToggleEventArgs.ToggleEventArgs() -> void
+Microsoft.AspNetCore.Components.Web.ToggleEventArgs.NewState.get -> string!
+Microsoft.AspNetCore.Components.Web.ToggleEventArgs.NewState.set -> void
+Microsoft.AspNetCore.Components.Web.ToggleEventArgs.OldState.get -> string!
+Microsoft.AspNetCore.Components.Web.ToggleEventArgs.OldState.set -> void
