@@ -51,6 +51,20 @@ public class LogoutForm : ComponentBase
     /// </summary>
     [Parameter] public bool PreventDefault { get; set; }
 
+    /// <summary>
+    /// Gets or sets the name of the form. This is used to uniquely identify the form
+    /// in the Blazor framework, equivalent to the @formname directive attribute.
+    /// </summary>
+    [Parameter] public string? FormName { get; set; }
+
+    /// <summary>
+    /// Captures unmatched HTML attributes and applies them to the rendered form element.
+    /// Allows consumers to set custom attributes such as <c>class</c>, <c>id</c>, <c>aria-*</c>,
+    /// <c>data-*</c>, and other standard HTML attributes.
+    /// </summary>
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
     [Inject] private IServiceProvider Services { get; set; } = default!;
 
     /// <inheritdoc />
@@ -71,21 +85,34 @@ public class LogoutForm : ComponentBase
             builder.AddAttribute(2, "action", Action);
         }
 
+        // Add form name attribute if specified (equivalent to @formname directive)
+        if (!string.IsNullOrEmpty(FormName))
+        {
+            builder.AddAttribute(3, "name", FormName);
+        }
+
         // Only attach onsubmit handler if OnSubmit has a delegate or PreventDefault is true
+        int nextSequence = 4;
         if (OnSubmit.HasDelegate || PreventDefault)
         {
-            builder.AddAttribute(3, "onsubmit", _handleSubmitDelegate);
+            builder.AddAttribute(nextSequence++, "onsubmit", _handleSubmitDelegate);
+        }
+
+        // Add pass-through HTML attributes
+        if (AdditionalAttributes is not null)
+        {
+            builder.AddMultipleAttributes(nextSequence++, AdditionalAttributes);
         }
 
         // Render child content
-        builder.AddContent(4, ChildContent);
+        builder.AddContent(nextSequence++, ChildContent);
 
         // Render antiforgery token in server-side contexts
         // The AntiforgeryToken component will safely no-op if HttpContext is unavailable (e.g., WASM)
         var antiforgeryStateProvider = Services.GetService<AntiforgeryStateProvider>();
         if (antiforgeryStateProvider != null)
         {
-            builder.OpenComponent<AntiforgeryToken>(5);
+            builder.OpenComponent<AntiforgeryToken>(nextSequence++);
             builder.CloseComponent();
         }
 
