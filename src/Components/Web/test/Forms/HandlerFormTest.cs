@@ -184,13 +184,18 @@ public class HandlerFormTest
         Assert.NotNull(formElement.ElementName);
     }
 
-    [Fact]
-    public async Task AppliesAdditionalAttributes()
+    [Theory]
+    [InlineData("class", "custom-form")]
+    [InlineData("id", "my-form")]
+    [InlineData("data-testid", "form-test")]
+    [InlineData("data-form-type", "registration")]
+    [InlineData("aria-label", "Contact Form")]
+    [InlineData("aria-describedby", "form-help")]
+    public async Task AppliesAdditionalAttributes(string attributeName, string expectedValue)
     {
         var additionalAttributes = new Dictionary<string, object>
         {
-            { "class", "custom-form" },
-            { "id", "my-form" }
+            { attributeName, expectedValue }
         };
         var rootComponent = new TestHandlerFormHostComponent
         {
@@ -199,73 +204,12 @@ public class HandlerFormTest
 
         var frames = await RenderAndGetFrames(rootComponent);
 
-        var classAttribute = frames.FirstOrDefault(f =>
+        var attribute = frames.FirstOrDefault(f =>
             f.FrameType == RenderTreeFrameType.Attribute &&
-            f.AttributeName == "class");
-        var idAttribute = frames.FirstOrDefault(f =>
-            f.FrameType == RenderTreeFrameType.Attribute &&
-            f.AttributeName == "id");
+            f.AttributeName == attributeName);
 
-        Assert.NotNull(classAttribute.AttributeName);
-        Assert.Equal("custom-form", classAttribute.AttributeValue);
-        Assert.NotNull(idAttribute.AttributeName);
-        Assert.Equal("my-form", idAttribute.AttributeValue);
-    }
-
-    [Fact]
-    public async Task AppliesDataAttributes()
-    {
-        var additionalAttributes = new Dictionary<string, object>
-        {
-            { "data-testid", "form-test" },
-            { "data-form-type", "registration" }
-        };
-        var rootComponent = new TestHandlerFormHostComponent
-        {
-            AdditionalAttributes = additionalAttributes
-        };
-
-        var frames = await RenderAndGetFrames(rootComponent);
-
-        var dataTestIdAttribute = frames.FirstOrDefault(f =>
-            f.FrameType == RenderTreeFrameType.Attribute &&
-            f.AttributeName == "data-testid");
-        var dataFormTypeAttribute = frames.FirstOrDefault(f =>
-            f.FrameType == RenderTreeFrameType.Attribute &&
-            f.AttributeName == "data-form-type");
-
-        Assert.NotNull(dataTestIdAttribute.AttributeName);
-        Assert.Equal("form-test", dataTestIdAttribute.AttributeValue);
-        Assert.NotNull(dataFormTypeAttribute.AttributeName);
-        Assert.Equal("registration", dataFormTypeAttribute.AttributeValue);
-    }
-
-    [Fact]
-    public async Task AppliesAriaAttributes()
-    {
-        var additionalAttributes = new Dictionary<string, object>
-        {
-            { "aria-label", "Contact Form" },
-            { "aria-describedby", "form-help" }
-        };
-        var rootComponent = new TestHandlerFormHostComponent
-        {
-            AdditionalAttributes = additionalAttributes
-        };
-
-        var frames = await RenderAndGetFrames(rootComponent);
-
-        var ariaLabelAttribute = frames.FirstOrDefault(f =>
-            f.FrameType == RenderTreeFrameType.Attribute &&
-            f.AttributeName == "aria-label");
-        var ariaDescribedByAttribute = frames.FirstOrDefault(f =>
-            f.FrameType == RenderTreeFrameType.Attribute &&
-            f.AttributeName == "aria-describedby");
-
-        Assert.NotNull(ariaLabelAttribute.AttributeName);
-        Assert.Equal("Contact Form", ariaLabelAttribute.AttributeValue);
-        Assert.NotNull(ariaDescribedByAttribute.AttributeName);
-        Assert.Equal("form-help", ariaDescribedByAttribute.AttributeValue);
+        Assert.NotNull(attribute.AttributeName);
+        Assert.Equal(expectedValue, attribute.AttributeValue);
     }
 
     [Fact]
