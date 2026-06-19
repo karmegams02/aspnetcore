@@ -3,7 +3,6 @@
 
 using System.Diagnostics;
 using Microsoft.AspNetCore.Components.Rendering;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace Microsoft.AspNetCore.Components.Forms;
 
@@ -11,20 +10,20 @@ namespace Microsoft.AspNetCore.Components.Forms;
 /// Renders a lightweight form element that preserves native HTML form behavior
 /// while enabling optional integration with Razor components.
 /// </summary>
-public class LogoutForm : ComponentBase
+public class HandlerForm : ComponentBase
 {
     private readonly Func<Task> _handleSubmitDelegate; // Cache to avoid per-render allocations
 
     /// <summary>
-    /// Constructs an instance of <see cref="LogoutForm"/>.
+    /// Constructs an instance of <see cref="HandlerForm"/>.
     /// </summary>
-    public LogoutForm()
+    public HandlerForm()
     {
         _handleSubmitDelegate = HandleSubmitAsync;
     }
 
     /// <summary>
-    /// Specifies the content to be rendered inside this <see cref="LogoutForm"/>.
+    /// Specifies the content to be rendered inside this <see cref="HandlerForm"/>.
     /// </summary>
     [Parameter] public RenderFragment? ChildContent { get; set; }
 
@@ -32,24 +31,7 @@ public class LogoutForm : ComponentBase
     /// A callback that will be invoked when the form is submitted.
     /// Only attached to the form when a handler is present.
     /// </summary>
-    [Parameter] public EventCallback<FormSubmitEventArgs> OnSubmit { get; set; }
-
-    /// <summary>
-    /// Specifies the HTTP method for the form. Defaults to "post".
-    /// </summary>
-    [Parameter] public string Method { get; set; } = "post";
-
-    /// <summary>
-    /// Specifies the URL to which the form will be submitted.
-    /// If not specified, the form submits to the current URL.
-    /// </summary>
-    [Parameter] public string? Action { get; set; }
-
-    /// <summary>
-    /// When true, prevents the default form submission behavior,
-    /// allowing only Blazor event handling via OnSubmit.
-    /// </summary>
-    [Parameter] public bool PreventDefault { get; set; }
+    [Parameter] public EventCallback OnSubmit { get; set; }
 
     /// <summary>
     /// Gets or sets the name of the form. This is used to uniquely identify the form
@@ -65,35 +47,23 @@ public class LogoutForm : ComponentBase
     [Parameter(CaptureUnmatchedValues = true)]
     public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
 
-    [Inject] private IServiceProvider Services { get; set; } = default!;
+    [Inject] private AntiforgeryStateProvider AntiforgeryStateProvider { get; set; } = default!;
 
     /// <inheritdoc />
-#pragma warning disable RS0016 // Symbol 'BuildRenderTree' is not part of the declared API
     protected override void BuildRenderTree(RenderTreeBuilder builder)
-#pragma warning restore RS0016
     {
-        Debug.Assert(Services != null);
+        Debug.Assert(AntiforgeryStateProvider != null);
 
         builder.OpenElement(0, "form");
 
         // Add method attribute
-        builder.AddAttribute(1, "method", Method);
+        builder.AddAttribute(1, "method", "post");
 
-        // Add action attribute if specified
-        if (!string.IsNullOrEmpty(Action))
-        {
-            builder.AddAttribute(2, "action", Action);
-        }
+        // Track sequence for proper ordering
+        int nextSequence = 2;
 
-        // Add form name attribute if specified (equivalent to @formname directive)
-        if (!string.IsNullOrEmpty(FormName))
-        {
-            builder.AddAttribute(3, "name", FormName);
-        }
-
-        // Only attach onsubmit handler if OnSubmit has a delegate or PreventDefault is true
-        int nextSequence = 4;
-        if (OnSubmit.HasDelegate || PreventDefault)
+        // Only attach onsubmit handler if OnSubmit has a delegate
+        if (OnSubmit.HasDelegate)
         {
             builder.AddAttribute(nextSequence++, "onsubmit", _handleSubmitDelegate);
         }
@@ -104,13 +74,19 @@ public class LogoutForm : ComponentBase
             builder.AddMultipleAttributes(nextSequence++, AdditionalAttributes);
         }
 
+        // Add form name attribute if specified (equivalent to @formname directive)
+        // AddNamedEvent must be called while still in element context and before content
+        if (!string.IsNullOrEmpty(FormName))
+        {
+            builder.AddNamedEvent("onsubmit", FormName);
+        }
+
         // Render child content
         builder.AddContent(nextSequence++, ChildContent);
 
         // Render antiforgery token in server-side contexts
         // The AntiforgeryToken component will safely no-op if HttpContext is unavailable (e.g., WASM)
-        var antiforgeryStateProvider = Services.GetService<AntiforgeryStateProvider>();
-        if (antiforgeryStateProvider != null)
+        if (AntiforgeryStateProvider != null)
         {
             builder.OpenComponent<AntiforgeryToken>(nextSequence++);
             builder.CloseComponent();
@@ -123,7 +99,7 @@ public class LogoutForm : ComponentBase
     {
         if (OnSubmit.HasDelegate)
         {
-            await OnSubmit.InvokeAsync(new FormSubmitEventArgs());
+            await OnSubmit.InvokeAsync();
         }
     }
 }
