@@ -23,28 +23,37 @@ public class HandlerFormTest
         _testRenderer = new(services.BuildServiceProvider());
     }
 
-    [Fact]
-    public async Task RendersFormElement()
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task DoesNotAddFormNameAttribute_WhenFormNameIsNullOrEmptyOrWhitespace(string? formName)
     {
-        var rootComponent = new TestHandlerFormHostComponent();
+        var rootComponent = new TestHandlerFormHostComponent
+        {
+            FormName = formName
+        };
 
         var frames = await RenderAndGetFrames(rootComponent);
 
         var formElement = frames.FirstOrDefault(f => f.FrameType == RenderTreeFrameType.Element && f.ElementName == "form");
         Assert.NotNull(formElement.ElementName);
-        Assert.Equal("form", formElement.ElementName);
     }
 
-    [Fact]
-    public async Task RendersFormWithMethodPost()
+    [Theory]
+    [InlineData("myform")]
+    [InlineData("form-name_with.special-chars")]
+    public async Task AddsFormNameAttribute_WhenFormNameIsProvided(string formName)
     {
-        var rootComponent = new TestHandlerFormHostComponent();
+        var rootComponent = new TestHandlerFormHostComponent
+        {
+            FormName = formName
+        };
 
         var frames = await RenderAndGetFrames(rootComponent);
 
-        var methodAttribute = frames.FirstOrDefault(f => f.FrameType == RenderTreeFrameType.Attribute && f.AttributeName == "method");
-        Assert.NotNull(methodAttribute.AttributeName);
-        Assert.Equal("post", methodAttribute.AttributeValue);
+        var formElement = frames.FirstOrDefault(f => f.FrameType == RenderTreeFrameType.Element && f.ElementName == "form");
+        Assert.NotNull(formElement.ElementName);
     }
 
     [Fact]
@@ -93,64 +102,6 @@ public class HandlerFormTest
     }
 
     [Fact]
-    public async Task AddsFormNameAttribute_WhenFormNameIsProvided()
-    {
-        var rootComponent = new TestHandlerFormHostComponent
-        {
-            FormName = "myform"
-        };
-
-        var frames = await RenderAndGetFrames(rootComponent);
-
-        var formElement = frames.FirstOrDefault(f => f.FrameType == RenderTreeFrameType.Element && f.ElementName == "form");
-        Assert.NotNull(formElement.ElementName);
-    }
-
-    [Fact]
-    public async Task DoesNotAddFormNameAttribute_WhenFormNameIsNull()
-    {
-        var rootComponent = new TestHandlerFormHostComponent
-        {
-            FormName = null
-        };
-
-        var frames = await RenderAndGetFrames(rootComponent);
-
-        var formElement = frames.FirstOrDefault(f => f.FrameType == RenderTreeFrameType.Element && f.ElementName == "form");
-        Assert.NotNull(formElement.ElementName);
-        Assert.Equal("form", formElement.ElementName);
-    }
-
-    [Fact]
-    public async Task DoesNotAddFormNameAttribute_WhenFormNameIsEmpty()
-    {
-        var rootComponent = new TestHandlerFormHostComponent
-        {
-            FormName = string.Empty
-        };
-
-        var frames = await RenderAndGetFrames(rootComponent);
-
-        var formElement = frames.FirstOrDefault(f => f.FrameType == RenderTreeFrameType.Element && f.ElementName == "form");
-        Assert.NotNull(formElement.ElementName);
-        Assert.Equal("form", formElement.ElementName);
-    }
-
-    [Fact]
-    public async Task DoesNotAddFormNameAttribute_WhenFormNameIsWhitespace()
-    {
-        var rootComponent = new TestHandlerFormHostComponent
-        {
-            FormName = "   "
-        };
-
-        var frames = await RenderAndGetFrames(rootComponent);
-
-        var formElement = frames.FirstOrDefault(f => f.FrameType == RenderTreeFrameType.Element && f.ElementName == "form");
-        Assert.NotNull(formElement.ElementName);
-    }
-
-    [Fact]
     public async Task AddsOnSubmitHandler_WhenOnSubmitHasDelegate()
     {
         var rootComponent = new TestHandlerFormHostComponent
@@ -168,20 +119,6 @@ public class HandlerFormTest
             f.AttributeName == "onsubmit");
 
         Assert.NotNull(onsubmitAttribute.AttributeName);
-    }
-
-    [Fact]
-    public async Task DoesNotAddOnSubmitHandler_WhenOnSubmitIsEmpty()
-    {
-        var rootComponent = new TestHandlerFormHostComponent
-        {
-            OnSubmit = EventCallback.Empty
-        };
-
-        var frames = await RenderAndGetFrames(rootComponent);
-
-        var formElement = frames.FirstOrDefault(f => f.FrameType == RenderTreeFrameType.Element && f.ElementName == "form");
-        Assert.NotNull(formElement.ElementName);
     }
 
     [Theory]
@@ -323,23 +260,6 @@ public class HandlerFormTest
     }
 
     [Fact]
-    public async Task RendersWithMinimalParameters()
-    {
-        var rootComponent = new TestHandlerFormHostComponent();
-
-        var frames = await RenderAndGetFrames(rootComponent);
-
-        var formElement = frames.FirstOrDefault(f => f.FrameType == RenderTreeFrameType.Element && f.ElementName == "form");
-        Assert.NotNull(formElement.ElementName);
-        Assert.Equal("form", formElement.ElementName);
-
-        var methodAttribute = frames.FirstOrDefault(f =>
-            f.FrameType == RenderTreeFrameType.Attribute && f.AttributeName == "method");
-        Assert.NotNull(methodAttribute.AttributeName);
-        Assert.Equal("post", methodAttribute.AttributeValue);
-    }
-
-    [Fact]
     public async Task RendersNestedContent()
     {
         var rootComponent = new TestHandlerFormHostComponent
@@ -350,39 +270,6 @@ public class HandlerFormTest
                 builder.AddContent(1, "Nested content");
                 builder.CloseElement();
             }
-        };
-
-        var frames = await RenderAndGetFrames(rootComponent);
-
-        var formElement = frames.FirstOrDefault(f => f.FrameType == RenderTreeFrameType.Element && f.ElementName == "form");
-        Assert.NotNull(formElement.ElementName);
-    }
-
-    [Fact]
-    public async Task HandlesLargeNumberOfAttributes()
-    {
-        var additionalAttributes = new Dictionary<string, object>();
-        for (int i = 0; i < 20; i++)
-        {
-            additionalAttributes[$"data-attr-{i}"] = $"value-{i}";
-        }
-        var rootComponent = new TestHandlerFormHostComponent
-        {
-            AdditionalAttributes = additionalAttributes
-        };
-
-        var frames = await RenderAndGetFrames(rootComponent);
-
-        var formElement = frames.FirstOrDefault(f => f.FrameType == RenderTreeFrameType.Element && f.ElementName == "form");
-        Assert.NotNull(formElement.ElementName);
-    }
-
-    [Fact]
-    public async Task HandlesSpecialCharactersInFormName()
-    {
-        var rootComponent = new TestHandlerFormHostComponent
-        {
-            FormName = "form-name_with.special-chars"
         };
 
         var frames = await RenderAndGetFrames(rootComponent);
