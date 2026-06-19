@@ -55,27 +55,21 @@ public class HandlerForm : ComponentBase
         Debug.Assert(AntiforgeryStateProvider != null);
 
         builder.OpenElement(0, "form");
-
-        // Add method attribute
         builder.AddAttribute(1, "method", "post");
 
-        // Track sequence for proper ordering
         int nextSequence = 2;
-
         // Only attach onsubmit handler if OnSubmit has a delegate
         if (OnSubmit.HasDelegate)
         {
             builder.AddAttribute(nextSequence++, "onsubmit", _handleSubmitDelegate);
         }
 
-        // Add pass-through HTML attributes
         if (AdditionalAttributes is not null)
         {
             builder.AddMultipleAttributes(nextSequence++, AdditionalAttributes);
         }
 
         // Add form name attribute if specified (equivalent to @formname directive)
-        // AddNamedEvent must be called while still in element context and before content
         if (!string.IsNullOrEmpty(FormName))
         {
             builder.AddNamedEvent("onsubmit", FormName);
@@ -85,7 +79,6 @@ public class HandlerForm : ComponentBase
         builder.AddContent(nextSequence++, ChildContent);
 
         // Render antiforgery token in server-side contexts
-        // The AntiforgeryToken component will safely no-op if HttpContext is unavailable (e.g., WASM)
         if (AntiforgeryStateProvider != null)
         {
             builder.OpenComponent<AntiforgeryToken>(nextSequence++);
