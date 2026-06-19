@@ -1,22 +1,15 @@
 #nullable enable
-Microsoft.AspNetCore.Components.Forms.FormSubmitEventArgs
-Microsoft.AspNetCore.Components.Forms.FormSubmitEventArgs.FormSubmitEventArgs() -> void
-Microsoft.AspNetCore.Components.Forms.LogoutForm
-Microsoft.AspNetCore.Components.Forms.LogoutForm.Action.get -> string?
-Microsoft.AspNetCore.Components.Forms.LogoutForm.Action.set -> void
-Microsoft.AspNetCore.Components.Forms.LogoutForm.FormName.get -> string?
-Microsoft.AspNetCore.Components.Forms.LogoutForm.FormName.set -> void
-Microsoft.AspNetCore.Components.Forms.LogoutForm.AdditionalAttributes.get -> System.Collections.Generic.IReadOnlyDictionary<string!, object!>?
-Microsoft.AspNetCore.Components.Forms.LogoutForm.AdditionalAttributes.set -> void
-Microsoft.AspNetCore.Components.Forms.LogoutForm.ChildContent.get -> Microsoft.AspNetCore.Components.RenderFragment?
-Microsoft.AspNetCore.Components.Forms.LogoutForm.ChildContent.set -> void
-Microsoft.AspNetCore.Components.Forms.LogoutForm.Method.get -> string!
-Microsoft.AspNetCore.Components.Forms.LogoutForm.Method.set -> void
-Microsoft.AspNetCore.Components.Forms.LogoutForm.OnSubmit.get -> Microsoft.AspNetCore.Components.EventCallback<Microsoft.AspNetCore.Components.Forms.FormSubmitEventArgs!>
-Microsoft.AspNetCore.Components.Forms.LogoutForm.OnSubmit.set -> void
-Microsoft.AspNetCore.Components.Forms.LogoutForm.PreventDefault.get -> bool
-Microsoft.AspNetCore.Components.Forms.LogoutForm.PreventDefault.set -> void
-Microsoft.AspNetCore.Components.Forms.LogoutForm.LogoutForm() -> void
+Microsoft.AspNetCore.Components.Forms.HandlerForm
+override Microsoft.AspNetCore.Components.Forms.HandlerForm.BuildRenderTree(Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder! builder) -> void
+Microsoft.AspNetCore.Components.Forms.HandlerForm.FormName.get -> string?
+Microsoft.AspNetCore.Components.Forms.HandlerForm.FormName.set -> void
+Microsoft.AspNetCore.Components.Forms.HandlerForm.AdditionalAttributes.get -> System.Collections.Generic.IReadOnlyDictionary<string!, object!>?
+Microsoft.AspNetCore.Components.Forms.HandlerForm.AdditionalAttributes.set -> void
+Microsoft.AspNetCore.Components.Forms.HandlerForm.ChildContent.get -> Microsoft.AspNetCore.Components.RenderFragment?
+Microsoft.AspNetCore.Components.Forms.HandlerForm.ChildContent.set -> void
+Microsoft.AspNetCore.Components.Forms.HandlerForm.OnSubmit.get -> Microsoft.AspNetCore.Components.EventCallback
+Microsoft.AspNetCore.Components.Forms.HandlerForm.OnSubmit.set -> void
+Microsoft.AspNetCore.Components.Forms.HandlerForm.HandlerForm() -> void
 Microsoft.AspNetCore.Components.Web.EnvironmentBoundary
 Microsoft.AspNetCore.Components.Web.EnvironmentBoundary.ChildContent.get -> Microsoft.AspNetCore.Components.RenderFragment?
 Microsoft.AspNetCore.Components.Web.EnvironmentBoundary.ChildContent.set -> void
