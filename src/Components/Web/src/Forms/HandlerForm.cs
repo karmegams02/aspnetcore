@@ -3,6 +3,7 @@
 
 using System.Diagnostics;
 using Microsoft.AspNetCore.Components.Rendering;
+using Microsoft.AspNetCore.Components.Web;
 
 namespace Microsoft.AspNetCore.Components.Forms;
 
@@ -10,39 +11,49 @@ namespace Microsoft.AspNetCore.Components.Forms;
 /// Renders a lightweight form element that preserves native HTML form behavior
 /// while enabling optional integration with Razor components.
 /// </summary>
+/// <remarks>
+/// <para>This component does not support validation or <see cref="EditContext"/> integration.
+/// For scenarios requiring validation, use <see cref="EditForm"/> instead.</para>
+/// </remarks>
 public class HandlerForm : ComponentBase
 {
-    private readonly Func<Task> _handleSubmitDelegate; // Cache to avoid per-render allocations
+    // Cached delegate to avoid per-render allocations when OnSubmit is invoked
+    private readonly Func<EventArgs, Task> _handleSubmitDelegate;
 
-    /// <summary>
-    /// Constructs an instance of <see cref="HandlerForm"/>.
-    /// </summary>
     public HandlerForm()
     {
         _handleSubmitDelegate = HandleSubmitAsync;
     }
 
     /// <summary>
-    /// Specifies the content to be rendered inside this <see cref="HandlerForm"/>.
+    /// Gets or sets the content to be rendered inside the form element,
+    /// typically including form controls such as input fields and buttons.
     /// </summary>
     [Parameter] public RenderFragment? ChildContent { get; set; }
 
     /// <summary>
     /// A callback that will be invoked when the form is submitted.
-    /// Only attached to the form when a handler is present.
     /// </summary>
-    [Parameter] public EventCallback OnSubmit { get; set; }
+    /// <remarks>
+    /// <para>If <see cref="OnSubmit"/> has a delegate assigned, the form's default browser
+    /// submission is prevented and only the callback is invoked. This enables fully
+    /// client-side form handling via Blazor without a page reload.</para>
+    /// <para>If <see cref="OnSubmit"/> does not have a delegate assigned (the default),
+    /// the form performs a standard native HTML POST to the server with method="post".
+    /// No JavaScript interop is required for this mode.</para>
+    /// </remarks>
+    [Parameter] public EventCallback<EventArgs> OnSubmit { get; set; }
 
     /// <summary>
-    /// Gets or sets the name of the form. This is used to uniquely identify the form
-    /// in the Blazor framework, equivalent to the @formname directive attribute.
+    /// Gets or sets the name attribute for the form element. This value is used to
+    /// identify the form in the rendering tree and corresponds to the HTML name attribute.
     /// </summary>
     [Parameter] public string? FormName { get; set; }
 
     /// <summary>
-    /// Captures unmatched HTML attributes and applies them to the rendered form element.
-    /// Allows consumers to set custom attributes such as <c>class</c>, <c>id</c>, <c>aria-*</c>,
-    /// <c>data-*</c>, and other standard HTML attributes.
+    /// Gets or sets additional attributes to apply to the form element. These allow
+    /// consuming code to specify attributes such as <c>class</c>, <c>id</c>, <c>aria-*</c>,
+    /// or <c>data-*</c> that will be rendered on the HTML form element.
     /// </summary>
     [Parameter(CaptureUnmatchedValues = true)]
     public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
@@ -55,27 +66,28 @@ public class HandlerForm : ComponentBase
         Debug.Assert(AntiforgeryStateProvider != null);
 
         builder.OpenElement(0, "form");
-        builder.AddAttribute(1, "method", "post");
 
-        int nextSequence = 2;
-        // Only attach onsubmit handler if OnSubmit has a delegate
+        int nextSequence = 1;
         if (OnSubmit.HasDelegate)
         {
-            builder.AddAttribute(nextSequence++, "onsubmit", _handleSubmitDelegate);
+            // EventCallback.Factory.Create is called per-render when transitioning from
+            // no-handler to handler state. This is a minor allocation in hot paths but avoids
+            // the complexity of tracking state transitions. The handler delegate is cached.
+            builder.AddEventPreventDefaultAttribute(nextSequence++, "onsubmit", true);
+            builder.AddAttribute(nextSequence++, "onsubmit",
+               EventCallback.Factory.Create<EventArgs>(this, HandleSubmitAsync));
         }
 
         if (AdditionalAttributes is not null)
         {
             builder.AddMultipleAttributes(nextSequence++, AdditionalAttributes);
         }
-
-        // Add form name attribute if specified (equivalent to @formname directive)
+        builder.AddAttribute(nextSequence++, "method", "post");
         if (!string.IsNullOrEmpty(FormName))
         {
             builder.AddNamedEvent("onsubmit", FormName);
         }
 
-        // Render child content
         builder.AddContent(nextSequence++, ChildContent);
 
         // Render antiforgery token in server-side contexts
@@ -88,11 +100,15 @@ public class HandlerForm : ComponentBase
         builder.CloseElement();
     }
 
-    private async Task HandleSubmitAsync()
+    /// <summary>
+    /// Handles the form submission event and invokes the <see cref="OnSubmit"/> callback
+    /// if one has been configured.
+    /// </summary>
+    private async Task HandleSubmitAsync(EventArgs args)
     {
         if (OnSubmit.HasDelegate)
         {
-            await OnSubmit.InvokeAsync();
+            await OnSubmit.InvokeAsync(args);
         }
     }
 }

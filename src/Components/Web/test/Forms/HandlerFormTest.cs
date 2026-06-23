@@ -106,7 +106,7 @@ public class HandlerFormTest
     {
         var rootComponent = new TestHandlerFormHostComponent
         {
-            OnSubmit = EventCallback.Factory.Create(this, async () =>
+            OnSubmit = EventCallback.Factory.Create<EventArgs>(this, async (args) =>
             {
                 await Task.CompletedTask;
             })
@@ -241,7 +241,7 @@ public class HandlerFormTest
         };
         var rootComponent = new TestHandlerFormHostComponent
         {
-            OnSubmit = EventCallback.Factory.Create(this, async () => await Task.CompletedTask),
+            OnSubmit = EventCallback.Factory.Create<EventArgs>(this, async (args) => await Task.CompletedTask),
             AdditionalAttributes = additionalAttributes,
             InnerContent = builder =>
             {
@@ -353,7 +353,7 @@ public class HandlerFormTest
     {
         public RenderFragment? InnerContent { get; set; } = null;
         public string? FormName { get; set; } = null;
-        public EventCallback OnSubmit { get; set; } = default;
+        public EventCallback<EventArgs> OnSubmit { get; set; } = default;
         public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; } = null;
         protected override void BuildRenderTree(RenderTreeBuilder builder)
         {

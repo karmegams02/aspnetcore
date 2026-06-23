@@ -7,7 +7,7 @@ Microsoft.AspNetCore.Components.Forms.HandlerForm.AdditionalAttributes.get -> Sy
 Microsoft.AspNetCore.Components.Forms.HandlerForm.AdditionalAttributes.set -> void
 Microsoft.AspNetCore.Components.Forms.HandlerForm.ChildContent.get -> Microsoft.AspNetCore.Components.RenderFragment?
 Microsoft.AspNetCore.Components.Forms.HandlerForm.ChildContent.set -> void
-Microsoft.AspNetCore.Components.Forms.HandlerForm.OnSubmit.get -> Microsoft.AspNetCore.Components.EventCallback
+Microsoft.AspNetCore.Components.Forms.HandlerForm.OnSubmit.get -> Microsoft.AspNetCore.Components.EventCallback<System.EventArgs!>
 Microsoft.AspNetCore.Components.Forms.HandlerForm.OnSubmit.set -> void
 Microsoft.AspNetCore.Components.Forms.HandlerForm.HandlerForm() -> void
 Microsoft.AspNetCore.Components.Web.EnvironmentBoundary
