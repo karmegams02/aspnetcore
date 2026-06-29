@@ -17,7 +17,6 @@ namespace Microsoft.AspNetCore.Components.Forms;
 /// </remarks>
 public class HandlerForm : ComponentBase
 {
-    // Cached delegate to avoid per-render allocations when OnSubmit is invoked
     private readonly Func<EventArgs, Task> _handleSubmitDelegate;
 
     public HandlerForm()
@@ -70,9 +69,6 @@ public class HandlerForm : ComponentBase
         int nextSequence = 1;
         if (OnSubmit.HasDelegate)
         {
-            // EventCallback.Factory.Create is called per-render when transitioning from
-            // no-handler to handler state. This is a minor allocation in hot paths but avoids
-            // the complexity of tracking state transitions. The handler delegate is cached.
             builder.AddEventPreventDefaultAttribute(nextSequence++, "onsubmit", true);
             builder.AddAttribute(nextSequence++, "onsubmit",
                EventCallback.Factory.Create<EventArgs>(this, HandleSubmitAsync));
@@ -90,7 +86,6 @@ public class HandlerForm : ComponentBase
 
         builder.AddContent(nextSequence++, ChildContent);
 
-        // Render antiforgery token in server-side contexts
         if (AntiforgeryStateProvider != null)
         {
             builder.OpenComponent<AntiforgeryToken>(nextSequence++);
