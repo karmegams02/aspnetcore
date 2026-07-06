@@ -1,7 +1,6 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-using System.Diagnostics;
 using Microsoft.AspNetCore.Components.Rendering;
 using Microsoft.AspNetCore.Components.Web;
 
@@ -17,8 +16,11 @@ namespace Microsoft.AspNetCore.Components.Forms;
 /// </remarks>
 public class HandlerForm : ComponentBase
 {
-    private readonly Func<EventArgs, Task> _handleSubmitDelegate;
+    private readonly Func<EventArgs, Task> _handleSubmitDelegate; // Cache to avoid per-render allocations
 
+    /// <summary>
+    /// Constructs an instance of <see cref="HandlerForm"/>.
+    /// </summary>
     public HandlerForm()
     {
         _handleSubmitDelegate = HandleSubmitAsync;
@@ -34,12 +36,15 @@ public class HandlerForm : ComponentBase
     /// A callback that will be invoked when the form is submitted.
     /// </summary>
     /// <remarks>
-    /// <para>If <see cref="OnSubmit"/> has a delegate assigned, the form's default browser
-    /// submission is prevented and only the callback is invoked. This enables fully
-    /// client-side form handling via Blazor without a page reload.</para>
-    /// <para>If <see cref="OnSubmit"/> does not have a delegate assigned (the default),
-    /// the form performs a standard native HTML POST to the server with method="post".
-    /// No JavaScript interop is required for this mode.</para>
+    /// <para>The form always performs a native HTML POST to the server with
+    /// <c>method="post"</c> and includes an antiforgery token. The <see cref="OnSubmit"/>
+    /// callback fires alongside the native submission; assigning a delegate does not on
+    /// its own prevent the default browser behavior.</para>
+    /// <para>To handle the form entirely in Blazor without a page reload, also set
+    /// <see cref="PreventDefault"/> to <c>true</c>, or call <c>event.preventDefault()</c>
+    /// from within the handler. The SSR/logout-style flow
+    /// (<c>&lt;HandlerForm FormName="logout"&gt;</c> with no <see cref="OnSubmit"/>)
+    /// requires nothing else.</para>
     /// </remarks>
     [Parameter] public EventCallback<EventArgs> OnSubmit { get; set; }
 
@@ -50,6 +55,14 @@ public class HandlerForm : ComponentBase
     [Parameter] public string? FormName { get; set; }
 
     /// <summary>
+    /// Gets or sets a value indicating whether the form's default browser submission
+    /// is prevented. When <c>true</c>, the form will not perform its native POST to the
+    /// server and handling is delegated to Blazor (typically via the
+    /// <see cref="OnSubmit"/> callback).
+    /// </summary>
+    [Parameter] public bool PreventDefault { get; set; }
+
+    /// <summary>
     /// Gets or sets additional attributes to apply to the form element. These allow
     /// consuming code to specify attributes such as <c>class</c>, <c>id</c>, <c>aria-*</c>,
     /// or <c>data-*</c> that will be rendered on the HTML form element.
@@ -57,21 +70,19 @@ public class HandlerForm : ComponentBase
     [Parameter(CaptureUnmatchedValues = true)]
     public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
 
-    [Inject] private AntiforgeryStateProvider AntiforgeryStateProvider { get; set; } = default!;
-
     /// <inheritdoc />
     protected override void BuildRenderTree(RenderTreeBuilder builder)
     {
-        Debug.Assert(AntiforgeryStateProvider != null);
-
         builder.OpenElement(0, "form");
 
         int nextSequence = 1;
-        if (OnSubmit.HasDelegate)
+        if (PreventDefault)
         {
             builder.AddEventPreventDefaultAttribute(nextSequence++, "onsubmit", true);
-            builder.AddAttribute(nextSequence++, "onsubmit",
-               EventCallback.Factory.Create<EventArgs>(this, HandleSubmitAsync));
+        }
+        if (OnSubmit.HasDelegate)
+        {
+            builder.AddAttribute(nextSequence++, "onsubmit", _handleSubmitDelegate);
         }
 
         if (AdditionalAttributes is not null)
@@ -86,11 +97,8 @@ public class HandlerForm : ComponentBase
 
         builder.AddContent(nextSequence++, ChildContent);
 
-        if (AntiforgeryStateProvider != null)
-        {
-            builder.OpenComponent<AntiforgeryToken>(nextSequence++);
-            builder.CloseComponent();
-        }
+        builder.OpenComponent<AntiforgeryToken>(nextSequence++);
+        builder.CloseComponent();
 
         builder.CloseElement();
     }

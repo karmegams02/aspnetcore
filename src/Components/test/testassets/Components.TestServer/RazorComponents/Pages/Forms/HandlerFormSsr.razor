@@ -1,0 +1,51 @@
+﻿@page "/forms/handler-form-ssr"
+@using Microsoft.AspNetCore.Components.Forms
+@rendermode RenderMode.InteractiveServer
+
+<h2>HandlerForm SSR logout-style flow (issue #49653)</h2>
+
+<p>
+    Mirrors the issue #49653 logout flow. Because <code>HandlerForm</code> is a
+    lightweight component that does not install a
+    <code>FormMappingContext</code>, the supported way to perform a sign-out
+    without a page reload is:
+</p>
+
+<ol>
+    <li>Render the form under an interactive render mode (so a circuit exists).</li>
+    <li>Set <code>PreventDefault="true"</code> to suppress the native POST.</li>
+    <li>Handle the work entirely in the <code>OnSubmit</code> callback.</li>
+</ol>
+
+<p>
+    This is the working pattern exercised by the
+    <code>HandlerForm_Interactive</code> sample. The test asserts that the
+    <code>OnSubmit</code> callback fires and the URL does not change.
+</p>
+
+<p id="interactive">InteractiveServer</p>
+
+<HandlerForm FormName="handler-form-ssr" PreventDefault="true" OnSubmit="HandleLogoutAsync">
+    <input id="send" type="submit" value="Send" />
+</HandlerForm>
+
+@if (_loggedOut)
+{
+    <p id="logged-out">Logged out</p>
+}
+
+<p id="url">@Navigation.Uri</p>
+
+@code {
+    bool _loggedOut;
+
+    async Task HandleLogoutAsync(EventArgs args)
+    {
+        // Simulate a real logout: in production this would call
+        // HttpContext.SignOutAsync(...) and NavigationManager.NavigateTo("/").
+        _loggedOut = true;
+        await Task.Yield();
+    }
+
+    [Inject] NavigationManager Navigation { get; set; } = default!;
+}

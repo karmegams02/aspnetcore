@@ -1,0 +1,36 @@
+﻿@page "/forms/handler-form-ssr-prevent-default"
+@using Microsoft.AspNetCore.Components.Forms
+@rendermode RenderMode.InteractiveServer
+
+<h2>HandlerForm with PreventDefault=true</h2>
+
+<p>
+    With <code>PreventDefault=true</code>, the browser-level default submit
+    is suppressed. The test asserts the <code>OnSubmit</code> callback fires
+    and the URL is unchanged.
+</p>
+
+<p id="interactive">InteractiveServer</p>
+
+<HandlerForm FormName="handler-form-ssr-prevent" PreventDefault="true" OnSubmit="HandleSubmit">
+    <input id="send" type="submit" value="Send" />
+</HandlerForm>
+
+@if (_callbackFired)
+{
+    <p id="onsubmit-fired">OnSubmit callback fired</p>
+}
+
+<p id="url">@Navigation.Uri</p>
+
+@code {
+    bool _callbackFired;
+
+    async Task HandleSubmit(EventArgs args)
+    {
+        _callbackFired = true;
+        await Task.Yield();
+    }
+
+    [Inject] NavigationManager Navigation { get; set; } = default!;
+}

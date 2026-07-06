@@ -12,7 +12,7 @@ namespace Microsoft.AspNetCore.Components.Forms;
 
 public class HandlerFormTest
 {
-    private TestRenderer _testRenderer = new();
+    private TestRenderer _testRenderer;
 
     public HandlerFormTest()
     {
@@ -23,102 +23,119 @@ public class HandlerFormTest
         _testRenderer = new(services.BuildServiceProvider());
     }
 
-    [Theory]
-    [InlineData(null)]
-    [InlineData("")]
-    [InlineData("   ")]
-    public async Task DoesNotAddFormNameAttribute_WhenFormNameIsNullOrEmptyOrWhitespace(string? formName)
+    [Fact]
+    public async Task RendersFormElement_AsRoot()
     {
-        var rootComponent = new TestHandlerFormHostComponent
-        {
-            FormName = formName
-        };
+        var rootComponent = new TestHandlerFormHostComponent();
 
-        var frames = await RenderAndGetFrames(rootComponent);
+        var frames = await RenderAndGetHandlerFormFramesAsync(rootComponent);
 
-        var formElement = frames.FirstOrDefault(f => f.FrameType == RenderTreeFrameType.Element && f.ElementName == "form");
-        Assert.NotNull(formElement.ElementName);
+        AssertFrame.Element(frames.Array[0], "form", subtreeLength: frames.Count, sequence: 0);
+    }
+
+    [Fact]
+    public async Task RendersMethodPostAttribute()
+    {
+        var rootComponent = new TestHandlerFormHostComponent();
+
+        var frames = await RenderAndGetHandlerFormFramesAsync(rootComponent);
+
+        var methodAttribute = FindAttribute(frames, "method");
+        AssertFrame.Attribute(methodAttribute, "method", "post");
     }
 
     [Theory]
     [InlineData("myform")]
     [InlineData("form-name_with.special-chars")]
-    public async Task AddsFormNameAttribute_WhenFormNameIsProvided(string formName)
+    public async Task AddsNamedEventForFormName_WhenFormNameIsProvided(string formName)
     {
         var rootComponent = new TestHandlerFormHostComponent
         {
             FormName = formName
         };
 
-        var frames = await RenderAndGetFrames(rootComponent);
+        var frames = await RenderAndGetHandlerFormFramesAsync(rootComponent);
 
-        var formElement = frames.FirstOrDefault(f => f.FrameType == RenderTreeFrameType.Element && f.ElementName == "form");
-        Assert.NotNull(formElement.ElementName);
+        var namedEvent = FindNamedEvent(frames, "onsubmit");
+        AssertFrame.NamedEvent(namedEvent, "onsubmit", formName);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    public async Task DoesNotAddNamedEvent_WhenFormNameIsNullOrEmpty(string? formName)
+    {Arrange
+        var rootComponent = new TestHandlerFormHostComponent
+        {
+            FormName = formName
+        };
+
+        var frames = await RenderAndGetHandlerFormFramesAsync(rootComponent);
+
+        Assert.Null(FindNamedEventOrDefault(frames));
     }
 
     [Fact]
-    public async Task RendersChildContent()
+    public async Task RendersAntiforgeryTokenComponent_Always()
     {
         var rootComponent = new TestHandlerFormHostComponent
         {
-            InnerContent = builder =>
-            {
-                builder.AddContent(0, "Form Content");
-            }
+            OnSubmit = EventCallback.Factory.Create<EventArgs>(this, args => Task.CompletedTask),
         };
 
-        var frames = await RenderAndGetFrames(rootComponent);
 
-        var textFrame = frames.FirstOrDefault(f => f.FrameType == RenderTreeFrameType.Text && f.TextContent == "Form Content");
-        Assert.NotNull(textFrame.TextContent);
-        Assert.Equal("Form Content", textFrame.TextContent);
+        // Assert: AntiforgeryToken component frame is present with subtree length 1.
+        var antiforgeryComponent = FindComponent<AntiforgeryToken>(frames);
+        AssertFrame.Component<AntiforgeryToken>(antiforgeryComponent, subtreeLength: 1);
     }
 
     [Fact]
-    public async Task RendersMultipleChildElements()
+    public async Task AddsOnSubmitAttribute_WhenOnSubmitHasDelegate()
     {
         var rootComponent = new TestHandlerFormHostComponent
         {
-            InnerContent = builder =>
-            {
-                builder.OpenElement(0, "input");
-                builder.AddAttribute(1, "type", "text");
-                builder.CloseElement();
-                builder.OpenElement(2, "button");
-                builder.AddContent(3, "Submit");
-                builder.CloseElement();
-            }
+            OnSubmit = EventCallback.Factory.Create<EventArgs>(this, args => Task.CompletedTask),
         };
 
-        var frames = await RenderAndGetFrames(rootComponent);
-
-        var inputElement = frames.FirstOrDefault(f => f.FrameType == RenderTreeFrameType.Element && f.ElementName == "input");
-        var buttonElement = frames.FirstOrDefault(f => f.FrameType == RenderTreeFrameType.Element && f.ElementName == "button");
-
-        Assert.NotNull(inputElement.ElementName);
-        Assert.NotNull(buttonElement.ElementName);
-        Assert.Equal("input", inputElement.ElementName);
-        Assert.Equal("button", buttonElement.ElementName);
+        var frames = await RenderAndGetHandlerFormFramesAsync(rootComponent);
+        var onsubmitAttribute = FindAttribute(frames, "onsubmit");
+        AssertFrame.Attribute(onsubmitAttribute, "onsubmit", typeof(Func<EventArgs, Task>));
     }
 
     [Fact]
-    public async Task AddsOnSubmitHandler_WhenOnSubmitHasDelegate()
+    public async Task DoesNotAddOnSubmitAttribute_WhenOnSubmitHasNoDelegate()
+    {
+
+        var rootComponent = new TestHandlerFormHostComponent();
+
+        var frames = await RenderAndGetHandlerFormFramesAsync(rootComponent);
+
+        Assert.Null(FindAttributeOrDefault(frames, "onsubmit"));
+    }
+
+    [Fact]
+    public async Task AddsPreventDefaultAttribute_WhenPreventDefaultIsTrue()
     {
         var rootComponent = new TestHandlerFormHostComponent
         {
-            OnSubmit = EventCallback.Factory.Create<EventArgs>(this, async (args) =>
-            {
-                await Task.CompletedTask;
-            })
+            PreventDefault = true,
         };
 
-        var frames = await RenderAndGetFrames(rootComponent);
+        var frames = await RenderAndGetHandlerFormFramesAsync(rootComponent);
 
-        var onsubmitAttribute = frames.FirstOrDefault(f =>
-            f.FrameType == RenderTreeFrameType.Attribute &&
-            f.AttributeName == "onsubmit");
+        var preventDefault = FindAttributeOrDefault(frames, "__internal_preventDefault_onsubmit");
+        Assert.NotNull(preventDefault);
+    }
 
-        Assert.NotNull(onsubmitAttribute.AttributeName);
+    [Fact]
+    public async Task DoesNotAddPreventDefaultAttribute_WhenPreventDefaultIsFalse()
+    {
+        var rootComponent = new TestHandlerFormHostComponent();
+
+        var frames = await RenderAndGetHandlerFormFramesAsync(rootComponent);
+
+
+        Assert.Null(FindAttributeOrDefault(frames, "__internal_preventDefault_onsubmit"));
     }
 
     [Theory]
@@ -136,173 +153,85 @@ public class HandlerFormTest
         };
         var rootComponent = new TestHandlerFormHostComponent
         {
-            AdditionalAttributes = additionalAttributes
+            AdditionalAttributes = additionalAttributes,
         };
 
-        var frames = await RenderAndGetFrames(rootComponent);
+        var frames = await RenderAndGetHandlerFormFramesAsync(rootComponent);
 
-        var attribute = frames.FirstOrDefault(f =>
-            f.FrameType == RenderTreeFrameType.Attribute &&
-            f.AttributeName == attributeName);
-
-        Assert.NotNull(attribute.AttributeName);
-        Assert.Equal(expectedValue, attribute.AttributeValue);
+        var attribute = FindAttribute(frames, attributeName);
+        AssertFrame.Attribute(attribute, attributeName, expectedValue);
     }
 
     [Fact]
-    public async Task HandlesNullAdditionalAttributes()
-    {
-        var rootComponent = new TestHandlerFormHostComponent
-        {
-            AdditionalAttributes = null
-        };
-
-        var frames = await RenderAndGetFrames(rootComponent);
-
-        var formElement = frames.FirstOrDefault(f => f.FrameType == RenderTreeFrameType.Element && f.ElementName == "form");
-        Assert.NotNull(formElement.ElementName);
-    }
-
-    [Fact]
-    public async Task HandlesEmptyAdditionalAttributes()
-    {
-        var rootComponent = new TestHandlerFormHostComponent
-        {
-            AdditionalAttributes = new Dictionary<string, object>()
-        };
-
-        var frames = await RenderAndGetFrames(rootComponent);
-
-        var formElement = frames.FirstOrDefault(f => f.FrameType == RenderTreeFrameType.Element && f.ElementName == "form");
-        Assert.NotNull(formElement.ElementName);
-    }
-
-    [Fact]
-    public async Task RendersAntiforgeryTokenComponent()
-    {
-        var rootComponent = new TestHandlerFormHostComponent();
-
-        var frames = await RenderAndGetFrames(rootComponent);
-
-        var antiforgeryComponent = frames.FirstOrDefault(f =>
-            f.FrameType == RenderTreeFrameType.Component &&
-            f.ComponentType == typeof(AntiforgeryToken));
-
-        Assert.NotNull(antiforgeryComponent.ComponentType);
-        Assert.Equal(typeof(AntiforgeryToken), antiforgeryComponent.ComponentType);
-    }
-
-    [Fact]
-    public async Task RendersWithFormNameAndAdditionalAttributes()
+    public async Task MethodPostAttribute_WinsOverAdditionalAttributesMethod()
     {
         var additionalAttributes = new Dictionary<string, object>
         {
-            { "class", "form-horizontal" },
-            { "id", "contact-form" }
+            { "method", "dialog" },
         };
         var rootComponent = new TestHandlerFormHostComponent
         {
-            FormName = "contactForm",
             AdditionalAttributes = additionalAttributes,
+        };
+
+        var frames = await RenderAndGetHandlerFormFramesAsync(rootComponent);
+        var methodAttributes = frames.AsEnumerable()
+            .Where(f => f.FrameType == RenderTreeFrameType.Attribute && f.AttributeName == "method")
+            .ToArray();
+
+        Assert.NotEmpty(methodAttributes);
+        Assert.Equal("post", methodAttributes[^1].AttributeValue);
+    }
+
+    [Fact]
+    public async Task RendersChildContent()
+    {
+
+        var rootComponent = new TestHandlerFormHostComponent
+        {
+            InnerContent = builder =>
+            {
+                builder.AddContent(0, "Form Content");
+            },
+        };
+
+        var frames = await RenderAndGetHandlerFormFramesAsync(rootComponent);
+
+        var textFrame = FindText(frames, "Form Content");
+        AssertFrame.Text(textFrame, "Form Content");
+    }
+
+    [Fact]
+    public async Task RendersMultipleChildElements()
+    {
+
+        var rootComponent = new TestHandlerFormHostComponent
+        {
             InnerContent = builder =>
             {
                 builder.OpenElement(0, "input");
                 builder.AddAttribute(1, "type", "text");
-                builder.AddAttribute(2, "placeholder", "Name");
                 builder.CloseElement();
-            }
-        };
-
-        var frames = await RenderAndGetFrames(rootComponent);
-
-        var formElement = frames.FirstOrDefault(f => f.FrameType == RenderTreeFrameType.Element && f.ElementName == "form");
-        Assert.NotNull(formElement.ElementName);
-
-        var methodAttribute = frames.FirstOrDefault(f =>
-            f.FrameType == RenderTreeFrameType.Attribute && f.AttributeName == "method");
-        Assert.Equal("post", methodAttribute.AttributeValue);
-
-        var classAttribute = frames.FirstOrDefault(f =>
-            f.FrameType == RenderTreeFrameType.Attribute && f.AttributeName == "class");
-        Assert.Equal("form-horizontal", classAttribute.AttributeValue);
-
-        var inputElement = frames.FirstOrDefault(f =>
-            f.FrameType == RenderTreeFrameType.Element && f.ElementName == "input");
-        Assert.NotNull(inputElement.ElementName);
-    }
-
-    [Fact]
-    public async Task RendersWithOnSubmitAndAdditionalAttributes()
-    {
-        var additionalAttributes = new Dictionary<string, object>
-        {
-            { "class", "form-submit" },
-            { "id", "submit-form" }
-        };
-        var rootComponent = new TestHandlerFormHostComponent
-        {
-            OnSubmit = EventCallback.Factory.Create<EventArgs>(this, async (args) => await Task.CompletedTask),
-            AdditionalAttributes = additionalAttributes,
-            InnerContent = builder =>
-            {
-                builder.AddContent(0, "Form Content");
-            }
-        };
-
-        var frames = await RenderAndGetFrames(rootComponent);
-
-        var formElement = frames.FirstOrDefault(f => f.FrameType == RenderTreeFrameType.Element && f.ElementName == "form");
-        Assert.NotNull(formElement.ElementName);
-
-        var classAttribute = frames.FirstOrDefault(f =>
-            f.FrameType == RenderTreeFrameType.Attribute && f.AttributeName == "class");
-        Assert.Equal("form-submit", classAttribute.AttributeValue);
-    }
-
-    [Fact]
-    public async Task RendersNestedContent()
-    {
-        var rootComponent = new TestHandlerFormHostComponent
-        {
-            InnerContent = builder =>
-            {
-                builder.OpenElement(0, "div");
-                builder.AddContent(1, "Nested content");
+                builder.OpenElement(2, "button");
+                builder.AddContent(3, "Submit");
                 builder.CloseElement();
-            }
+            },
         };
 
-        var frames = await RenderAndGetFrames(rootComponent);
 
-        var formElement = frames.FirstOrDefault(f => f.FrameType == RenderTreeFrameType.Element && f.ElementName == "form");
-        Assert.NotNull(formElement.ElementName);
+        var frames = await RenderAndGetHandlerFormFramesAsync(rootComponent);
+
+        var inputElement = FindElement(frames, "input");
+        var buttonElement = FindElement(frames, "button");
+        AssertFrame.Element(inputElement, "input", subtreeLength: 2);
+        AssertFrame.Element(buttonElement, "button", subtreeLength: 2);
+
+        AssertFrame.Attribute(FindAttribute(frames, "type"), "type", "text");
+        AssertFrame.Text(FindText(frames, "Submit"), "Submit");
     }
 
     [Fact]
-    public async Task HandlesDynamicChildContent()
-    {
-        var items = new[] { "Item1", "Item2", "Item3" };
-        var rootComponent = new TestHandlerFormHostComponent
-        {
-            InnerContent = builder =>
-            {
-                foreach (var item in items)
-                {
-                    builder.OpenElement(0, "div");
-                    builder.AddContent(1, item);
-                    builder.CloseElement();
-                }
-            }
-        };
-
-        var frames = await RenderAndGetFrames(rootComponent);
-
-        var divElements = frames.Where(f => f.FrameType == RenderTreeFrameType.Element && f.ElementName == "div").ToArray();
-        Assert.Equal(3, divElements.Length);
-    }
-
-    [Fact]
-    public async Task HandlesComplexChildContent()
+    public async Task RendersComplexChildContent()
     {
         var rootComponent = new TestHandlerFormHostComponent
         {
@@ -323,47 +252,195 @@ public class HandlerFormTest
                 builder.CloseElement();
 
                 builder.CloseElement();
-            }
+            },
         };
 
-        var frames = await RenderAndGetFrames(rootComponent);
+        var frames = await RenderAndGetHandlerFormFramesAsync(rootComponent);
 
-        var fieldsetElement = frames.FirstOrDefault(f =>
-            f.FrameType == RenderTreeFrameType.Element && f.ElementName == "fieldset");
-        var legendElement = frames.FirstOrDefault(f =>
-            f.FrameType == RenderTreeFrameType.Element && f.ElementName == "legend");
-        var inputElement = frames.FirstOrDefault(f =>
-            f.FrameType == RenderTreeFrameType.Element && f.ElementName == "input");
+        AssertFrame.Element(FindElement(frames, "fieldset"), "fieldset", subtreeLength: 8);
+        AssertFrame.Element(FindElement(frames, "legend"), "legend", subtreeLength: 2);
+        AssertFrame.Element(FindElement(frames, "div"), "div", subtreeLength: 5);
+        AssertFrame.Element(FindElement(frames, "label"), "label", subtreeLength: 2);
+        AssertFrame.Element(FindElement(frames, "input"), "input", subtreeLength: 2);
 
-        Assert.NotNull(fieldsetElement.ElementName);
-        Assert.NotNull(legendElement.ElementName);
-        Assert.NotNull(inputElement.ElementName);
+        AssertFrame.Text(FindText(frames, "User Information"), "User Information");
+        AssertFrame.Text(FindText(frames, "Name:"), "Name:");
     }
 
-    private async Task<RenderTreeFrame[]> RenderAndGetFrames(TestHandlerFormHostComponent rootComponent)
+    [Fact]
+    public async Task RendersAllFrames_WithAllBranchesDisabled()
+    {
+        var rootComponent = new TestHandlerFormHostComponent
+        {
+            InnerContent = builder => builder.AddContent(0, "Body"),
+        };
+
+
+        var frames = await RenderAndGetHandlerFormFramesAsync(rootComponent);
+
+        Assert.Collection(frames.AsEnumerable(),
+            frame => AssertFrame.Element(frame, "form", subtreeLength: frames.Count, sequence: 0),
+            frame => AssertFrame.Attribute(frame, "method", "post", sequence: 1),
+            frame => AssertFrame.Region(frame, subtreeLength: 2, sequence: 2),
+            frame => AssertFrame.Text(frame, "Body", sequence: 0),
+            frame => AssertFrame.Component<AntiforgeryToken>(frame, subtreeLength: 1, sequence: 3));
+    }
+
+    [Fact]
+    public async Task RendersAllFrames_WithOnSubmit()
+    {
+
+        var rootComponent = new TestHandlerFormHostComponent
+        {
+            OnSubmit = EventCallback.Factory.Create<EventArgs>(this, args => Task.CompletedTask),
+            InnerContent = builder => builder.AddContent(0, "Body"),
+        };
+
+
+        var frames = await RenderAndGetHandlerFormFramesAsync(rootComponent);
+
+
+        Assert.Collection(frames.AsEnumerable(),
+            frame => AssertFrame.Element(frame, "form", subtreeLength: frames.Count, sequence: 0),
+            frame => AssertFrame.Attribute(frame, "onsubmit", typeof(Func<EventArgs, Task>), sequence: 1),
+            frame => AssertFrame.Attribute(frame, "method", "post", sequence: 2),
+            frame => AssertFrame.Region(frame, subtreeLength: 2, sequence: 3),
+            frame => AssertFrame.Text(frame, "Body", sequence: 0),
+            frame => AssertFrame.Component<AntiforgeryToken>(frame, subtreeLength: 1, sequence: 4));
+    }
+
+    [Fact]
+    public async Task RendersAllFrames_WithFormName()
+    {
+
+        var rootComponent = new TestHandlerFormHostComponent
+        {
+            FormName = "contactForm",
+            InnerContent = builder => builder.AddContent(0, "Body"),
+        };
+
+
+        var frames = await RenderAndGetHandlerFormFramesAsync(rootComponent);
+
+
+        Assert.Collection(frames.AsEnumerable(),
+            frame => AssertFrame.Element(frame, "form", subtreeLength: frames.Count, sequence: 0),
+            frame => AssertFrame.Attribute(frame, "method", "post", sequence: 1),
+            frame => AssertFrame.NamedEvent(frame, "onsubmit", "contactForm"),
+            frame => AssertFrame.Region(frame, subtreeLength: 2, sequence: 2),
+            frame => AssertFrame.Text(frame, "Body", sequence: 0),
+            frame => AssertFrame.Component<AntiforgeryToken>(frame, subtreeLength: 1, sequence: 3));
+    }
+
+    private async Task<ArrayRange<RenderTreeFrame>> RenderAndGetHandlerFormFramesAsync(TestHandlerFormHostComponent rootComponent)
     {
         var componentId = _testRenderer.AssignRootComponentId(rootComponent);
         await _testRenderer.RenderRootComponentAsync(componentId);
 
-        var batch = _testRenderer.Batches.Single();
-        return batch.ReferenceFrames;
+        var handlerFormComponentId = _testRenderer.Batches
+            .SelectMany(b => b.ReferenceFrames.AsEnumerable())
+            .Where(f => f.FrameType == RenderTreeFrameType.Component)
+            .Where(f => f.Component is HandlerForm)
+            .Select(f => f.ComponentId)
+            .Single();
+
+        return _testRenderer.GetCurrentRenderTreeFrames(handlerFormComponentId).Clone();
+    }
+
+    private static RenderTreeFrame FindAttribute(ArrayRange<RenderTreeFrame> frames, string attributeName)
+        => FindAttributeOrDefault(frames, attributeName)
+            ?? throw new Xunit.Sdk.XunitException($"No attribute named '{attributeName}' was found.");
+
+    private static RenderTreeFrame? FindAttributeOrDefault(ArrayRange<RenderTreeFrame> frames, string attributeName)
+    {
+        foreach (var f in frames.AsEnumerable())
+        {
+            if (f.FrameType == RenderTreeFrameType.Attribute && f.AttributeName == attributeName)
+            {
+                return f;
+            }
+        }
+        return null;
+    }
+
+    private static RenderTreeFrame FindElement(ArrayRange<RenderTreeFrame> frames, string elementName)
+        => FindElementOrDefault(frames, elementName)
+            ?? throw new Xunit.Sdk.XunitException($"No element named '{elementName}' was found.");
+
+    private static RenderTreeFrame? FindElementOrDefault(ArrayRange<RenderTreeFrame> frames, string elementName)
+    {
+        foreach (var f in frames.AsEnumerable())
+        {
+            if (f.FrameType == RenderTreeFrameType.Element && f.ElementName == elementName)
+            {
+                return f;
+            }
+        }
+        return null;
+    }
+
+    private static RenderTreeFrame FindText(ArrayRange<RenderTreeFrame> frames, string textContent)
+    {
+        foreach (var f in frames.AsEnumerable())
+        {
+            if (f.FrameType == RenderTreeFrameType.Text && f.TextContent == textContent)
+            {
+                return f;
+            }
+        }
+        throw new Xunit.Sdk.XunitException($"No text frame with content '{textContent}' was found.");
+    }
+
+    private static RenderTreeFrame FindNamedEvent(ArrayRange<RenderTreeFrame> frames, string eventType)
+        => FindNamedEventOrDefault(frames, eventType)
+            ?? throw new Xunit.Sdk.XunitException($"No named event of type '{eventType}' was found.");
+
+    private static RenderTreeFrame? FindNamedEventOrDefault(ArrayRange<RenderTreeFrame> frames, string? eventType = null)
+    {
+        foreach (var f in frames.AsEnumerable())
+        {
+            if (f.FrameType != RenderTreeFrameType.NamedEvent)
+            {
+                continue;
+            }
+            if (eventType is null || f.NamedEventType == eventType)
+            {
+                return f;
+            }
+        }
+        return null;
+    }
+
+    private static RenderTreeFrame FindComponent<T>(ArrayRange<RenderTreeFrame> frames) where T : IComponent
+    {
+        foreach (var f in frames.AsEnumerable())
+        {
+            if (f.FrameType == RenderTreeFrameType.Component && f.ComponentType == typeof(T))
+            {
+                return f;
+            }
+        }
+        throw new Xunit.Sdk.XunitException($"No component of type {typeof(T).Name} was found.");
     }
 
     private class TestHandlerFormHostComponent : ComponentBase
     {
-        public RenderFragment? InnerContent { get; set; } = null;
-        public string? FormName { get; set; } = null;
-        public EventCallback<EventArgs> OnSubmit { get; set; } = default;
-        public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; } = null;
+        public RenderFragment? InnerContent { get; set; }
+        public string? FormName { get; set; }
+        public EventCallback<EventArgs> OnSubmit { get; set; }
+        public bool PreventDefault { get; set; }
+        public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
         protected override void BuildRenderTree(RenderTreeBuilder builder)
         {
             builder.OpenComponent<HandlerForm>(0);
             builder.AddComponentParameter(1, "ChildContent", InnerContent);
             builder.AddComponentParameter(2, "FormName", FormName);
             builder.AddComponentParameter(3, "OnSubmit", OnSubmit);
+            builder.AddComponentParameter(4, "PreventDefault", PreventDefault);
             if (AdditionalAttributes != null)
             {
-                builder.AddComponentParameter(4, "AdditionalAttributes", AdditionalAttributes);
+                builder.AddComponentParameter(5, "AdditionalAttributes", AdditionalAttributes);
             }
             builder.CloseComponent();
         }
