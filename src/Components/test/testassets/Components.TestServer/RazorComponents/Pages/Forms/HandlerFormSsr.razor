@@ -41,8 +41,6 @@
 
     async Task HandleLogoutAsync(EventArgs args)
     {
-        // Simulate a real logout: in production this would call
-        // HttpContext.SignOutAsync(...) and NavigationManager.NavigateTo("/").
         _loggedOut = true;
         await Task.Yield();
     }
