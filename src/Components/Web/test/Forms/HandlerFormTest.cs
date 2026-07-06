@@ -64,7 +64,7 @@ public class HandlerFormTest
     [InlineData(null)]
     [InlineData("")]
     public async Task DoesNotAddNamedEvent_WhenFormNameIsNullOrEmpty(string? formName)
-    {Arrange
+    {
         var rootComponent = new TestHandlerFormHostComponent
         {
             FormName = formName
@@ -83,6 +83,7 @@ public class HandlerFormTest
             OnSubmit = EventCallback.Factory.Create<EventArgs>(this, args => Task.CompletedTask),
         };
 
+        var frames = await RenderAndGetHandlerFormFramesAsync(rootComponent);
 
         // Assert: AntiforgeryToken component frame is present with subtree length 1.
         var antiforgeryComponent = FindComponent<AntiforgeryToken>(frames);
@@ -105,7 +106,6 @@ public class HandlerFormTest
     [Fact]
     public async Task DoesNotAddOnSubmitAttribute_WhenOnSubmitHasNoDelegate()
     {
-
         var rootComponent = new TestHandlerFormHostComponent();
 
         var frames = await RenderAndGetHandlerFormFramesAsync(rootComponent);
@@ -133,7 +133,6 @@ public class HandlerFormTest
         var rootComponent = new TestHandlerFormHostComponent();
 
         var frames = await RenderAndGetHandlerFormFramesAsync(rootComponent);
-
 
         Assert.Null(FindAttributeOrDefault(frames, "__internal_preventDefault_onsubmit"));
     }
@@ -186,7 +185,6 @@ public class HandlerFormTest
     [Fact]
     public async Task RendersChildContent()
     {
-
         var rootComponent = new TestHandlerFormHostComponent
         {
             InnerContent = builder =>
@@ -204,7 +202,6 @@ public class HandlerFormTest
     [Fact]
     public async Task RendersMultipleChildElements()
     {
-
         var rootComponent = new TestHandlerFormHostComponent
         {
             InnerContent = builder =>
@@ -217,7 +214,6 @@ public class HandlerFormTest
                 builder.CloseElement();
             },
         };
-
 
         var frames = await RenderAndGetHandlerFormFramesAsync(rootComponent);
 
@@ -275,7 +271,6 @@ public class HandlerFormTest
             InnerContent = builder => builder.AddContent(0, "Body"),
         };
 
-
         var frames = await RenderAndGetHandlerFormFramesAsync(rootComponent);
 
         Assert.Collection(frames.AsEnumerable(),
@@ -289,16 +284,13 @@ public class HandlerFormTest
     [Fact]
     public async Task RendersAllFrames_WithOnSubmit()
     {
-
         var rootComponent = new TestHandlerFormHostComponent
         {
             OnSubmit = EventCallback.Factory.Create<EventArgs>(this, args => Task.CompletedTask),
             InnerContent = builder => builder.AddContent(0, "Body"),
         };
 
-
         var frames = await RenderAndGetHandlerFormFramesAsync(rootComponent);
-
 
         Assert.Collection(frames.AsEnumerable(),
             frame => AssertFrame.Element(frame, "form", subtreeLength: frames.Count, sequence: 0),
@@ -319,9 +311,7 @@ public class HandlerFormTest
             InnerContent = builder => builder.AddContent(0, "Body"),
         };
 
-
         var frames = await RenderAndGetHandlerFormFramesAsync(rootComponent);
-
 
         Assert.Collection(frames.AsEnumerable(),
             frame => AssertFrame.Element(frame, "form", subtreeLength: frames.Count, sequence: 0),
