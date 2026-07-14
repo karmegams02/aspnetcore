@@ -2,10 +2,12 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Linq;
+using System.Linq.Expressions;
 using Microsoft.AspNetCore.Components.QuickGrid.Infrastructure;
 using Microsoft.AspNetCore.Components.Routing;
 using Microsoft.AspNetCore.Components.Web.Virtualization;
 using Microsoft.JSInterop;
+using Microsoft.AspNetCore.Components.Rendering;
 using Microsoft.AspNetCore.Components.Forms;
 
 namespace Microsoft.AspNetCore.Components.QuickGrid;
@@ -121,6 +123,16 @@ public partial class QuickGrid<TGridItem> : IAsyncDisposable
     /// </summary>
     [Parameter] public string QueryParameterNamePrefix { get; set; } = "";
 
+    /// <summary>
+    /// Gets or sets a collection of <see cref="DynamicColumn{TGridItem}"/> definitions to be rendered by the grid
+    /// in addition to the static columns declared in <see cref="ChildContent"/>. Each entry is materialized as a
+    /// <see cref="PropertyColumn{TGridItem, TProp}"/> or <see cref="TemplateColumn{TGridItem}"/> depending on
+    /// whether <see cref="DynamicColumn{TGridItem}.Property"/> or <see cref="DynamicColumn{TGridItem}.Template"/>
+    /// is set on that entry. Columns whose <see cref="DynamicColumn{TGridItem}.Visible"/> flag is <see langword="false"/>
+    /// are skipped. Use this together with <see cref="ShowColumnAsync(string)"/> and <see cref="HideColumnAsync(string)"/>
+    /// to drive columns whose shape is only known at runtime.
+    /// </summary>
+    [Parameter] public IEnumerable<DynamicColumn<TGridItem>>? Columns { get; set; }
     [Inject] private IServiceProvider Services { get; set; } = default!;
     [Inject] private IJSRuntime JS { get; set; } = default!;
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
@@ -582,5 +594,219 @@ public partial class QuickGrid<TGridItem> : IAsyncDisposable
             // The JS side may routinely be gone already if the reason we're disposing is that
             // the client disconnected. This is not an error.
         }
+    }
+
+    /// <summary>
+    /// Renders the dynamic columns supplied via <see cref="Columns"/> into the grid.
+    /// Invoked from the <c>QuickGrid.razor</c> template during column collection. Each visible entry is materialized
+    /// as a <see cref="TemplateColumn{TGridItem}"/> (when <see cref="DynamicColumn{TGridItem}.Template"/> is set) or
+    /// a <see cref="PropertyColumn{TGridItem, TProp}"/> (when <see cref="DynamicColumn{TGridItem}.Property"/> is set).
+    /// </summary>
+    /// <param name="builder">The <see cref="RenderTreeBuilder"/> that collects the grid's columns.</param>
+    private void RenderDynamicColumn(RenderTreeBuilder builder)
+    {
+        if (Columns is null)
+        {
+            return;
+        }
+        int sequence = 0;
+        foreach (var column in Columns)
+        {
+            // Respect the DynamicColumn visibility flag when rendering
+            if (!column.Visible)
+            {
+                continue;
+            }
+            // Infer column type from which property is set
+            if (column.Property is not null)
+            {
+                SetPropertyColumnQuickGrid(builder, column, ref sequence);
+            }
+            else if (column.Template is not null)
+            {
+                SetTemplateColumnQuickGrid(builder, column, ref sequence);
+            }
+            else
+            {
+                throw new InvalidOperationException("Column must have either Property or Template set");
+            }
+        }
+    }
+    /// <summary>
+    /// Materializes the supplied <paramref name="column"/> as a <see cref="TemplateColumn{TGridItem}"/>,
+    /// wrapping its <see cref="DynamicColumn{TGridItem}.Template"/> in a <see cref="RenderFragment{TGridItem}"/>
+    /// that satisfies the <see cref="TemplateColumn{TGridItem}.ChildContent"/> contract.
+    /// </summary>
+    /// <param name="builder">The <see cref="RenderTreeBuilder"/> receiving the component frame.</param>
+    /// <param name="column">The dynamic column to render.</param>
+    /// <param name="sequence">The running sequence number used for stable diffing.</param>
+    private static void SetTemplateColumnQuickGrid(RenderTreeBuilder builder, DynamicColumn<TGridItem> column, ref int sequence)
+    {
+        if (column.Template is null)
+        {
+            throw new InvalidOperationException("A template value must be provided for the template column");
+        }
+        // The concrete TemplateColumn expects a RenderFragment<TGridItem> via its `ChildContent` parameter.
+        // DynamicColumn stores a non-generic RenderFragment, so wrap it to match the expected delegate.
+        RenderFragment<TGridItem> childContent = item => builder2 => builder2.AddContent(0, column.Template);
+
+        builder.OpenComponent<TemplateColumn<TGridItem>>(sequence++);
+        builder.AddAttribute(sequence++, nameof(TemplateColumn<TGridItem>.ChildContent), childContent);
+        AddDynamicColumnCommonAttribute(builder, column, ref sequence);
+        builder.CloseComponent();
+    }
+    /// <summary>
+    /// Materializes the supplied <paramref name="column"/> as a <see cref="PropertyColumn{TGridItem, TProp}"/>,
+    /// inferring the column's value type from <see cref="DynamicColumn{TGridItem}.Property"/> and binding the
+    /// expression to <see cref="PropertyColumn{TGridItem, TProp}.Property"/>.
+    /// </summary>
+    /// <param name="builder">The <see cref="RenderTreeBuilder"/> receiving the component frame.</param>
+    /// <param name="column">The dynamic column to render.</param>
+    /// <param name="sequence">The running sequence number used for stable diffing.</param>
+    private static void SetPropertyColumnQuickGrid(RenderTreeBuilder builder, DynamicColumn<TGridItem> column, ref int sequence)
+    {
+        if (column.Property is null)
+        {
+            throw new InvalidOperationException("A property expression must be provided for property columns.");
+        }
+
+        var propertyType = GetPropertyType(column.Property);
+#pragma warning disable IL3050
+        var propertyColumnType = typeof(PropertyColumn<,>).MakeGenericType(typeof(TGridItem), propertyType);
+#pragma warning restore IL3050
+        var propertyExpression = GetPropertyExpression(column.Property, propertyType);
+
+        builder.OpenComponent(sequence++, propertyColumnType);
+        AddDynamicColumnCommonAttribute(builder, column, ref sequence);
+        builder.AddAttribute(sequence++, nameof(PropertyColumn<TGridItem, object>.Property), propertyExpression);
+        builder.CloseComponent();
+    }
+
+    /// <summary>
+    /// Extracts the projected value type from a property lambda, unwrapping any
+    /// <see cref="ExpressionType.Convert"/> / <see cref="ExpressionType.ConvertChecked"/> node that
+    /// <c>Expression&lt;Func&lt;T, object&gt;&gt;</c> introduces so the column's true element type is returned.
+    /// </summary>
+    /// <param name="propertyExpression">The property selector supplied to <see cref="DynamicColumn{TGridItem}.Property"/>.</param>
+    /// <returns>The element type projected by the expression.</returns>
+    private static Type GetPropertyType(LambdaExpression propertyExpression)
+    {
+        var body = propertyExpression.Body;
+        if (body is UnaryExpression unaryExpression &&
+            (unaryExpression.NodeType == ExpressionType.Convert || unaryExpression.NodeType == ExpressionType.ConvertChecked))
+        {
+            return unaryExpression.Operand.Type;
+        }
+
+        return body.Type;
+    }
+
+    /// <summary>
+    /// Rebuilds the supplied property lambda so its delegate type matches <paramref name="propertyType"/>,
+    /// stripping any <see cref="ExpressionType.Convert"/> / <see cref="ExpressionType.ConvertChecked"/> wrapper
+    /// introduced by an <c>Expression&lt;Func&lt;T, object&gt;&gt;</c> signature.
+    /// </summary>
+    /// <param name="propertyExpression">The original property selector.</param>
+    /// <param name="propertyType">The target property type (typically obtained from <see cref="GetPropertyType"/>).</param>
+    /// <returns>A lambda whose delegate type is <see cref="Func{T, TResult}"/> with <paramref name="propertyType"/> as the result.</returns>
+    private static LambdaExpression GetPropertyExpression(LambdaExpression propertyExpression, Type propertyType)
+    {
+        var body = propertyExpression.Body;
+        if (body is UnaryExpression unaryExpression &&
+            (unaryExpression.NodeType == ExpressionType.Convert || unaryExpression.NodeType == ExpressionType.ConvertChecked))
+        {
+            body = unaryExpression.Operand;
+        }
+
+#pragma warning disable IL3050
+        var delegateType = typeof(Func<,>).MakeGenericType(typeof(TGridItem), propertyType);
+#pragma warning restore IL3050
+        return Expression.Lambda(delegateType, body, propertyExpression.Parameters);
+    }
+
+    /// <summary>
+    /// Copies the common <see cref="ColumnBase{TGridItem}"/> parameters (title, alignment, header template, options,
+    /// sort configuration, placeholder template, etc.) from <paramref name="column"/> onto the component frame
+    /// currently being opened on <paramref name="builder"/>.
+    /// </summary>
+    /// <param name="builder">The <see cref="RenderTreeBuilder"/> receiving the attributes.</param>
+    /// <param name="column">The dynamic column providing the values.</param>
+    /// <param name="sequence">The running sequence number used for stable diffing.</param>
+    private static void AddDynamicColumnCommonAttribute(RenderTreeBuilder builder, DynamicColumn<TGridItem> column, ref int sequence)
+    {
+        // Copy common ColumnBase parameters from the dynamic column to the constructed column component
+        if (!string.IsNullOrEmpty(column.Title))
+        {
+            builder.AddAttribute(sequence++, nameof(ColumnBase<TGridItem>.Title), column.Title);
+        }
+
+        if (!string.IsNullOrEmpty(column.Class))
+        {
+            builder.AddAttribute(sequence++, nameof(ColumnBase<TGridItem>.Class), column.Class);
+        }
+
+        builder.AddAttribute(sequence++, nameof(ColumnBase<TGridItem>.Align), column.Align);
+
+        if (column.HeaderTemplate is not null)
+        {
+            builder.AddAttribute(sequence++, nameof(ColumnBase<TGridItem>.HeaderTemplate), column.HeaderTemplate);
+        }
+
+        if (column.ColumnOptions is not null)
+        {
+            builder.AddAttribute(sequence++, nameof(ColumnBase<TGridItem>.ColumnOptions), column.ColumnOptions);
+        }
+
+        if (column.Sortable.HasValue)
+        {
+            builder.AddAttribute(sequence++, nameof(ColumnBase<TGridItem>.Sortable), column.Sortable);
+        }
+
+        builder.AddAttribute(sequence++, nameof(ColumnBase<TGridItem>.InitialSortDirection), column.InitialSortDirection);
+        builder.AddAttribute(sequence++, nameof(ColumnBase<TGridItem>.IsDefaultSortColumn), column.IsDefaultSortColumn);
+
+        if (column.PlaceholderTemplate is not null)
+        {
+            builder.AddAttribute(sequence++, nameof(ColumnBase<TGridItem>.PlaceholderTemplate), column.PlaceholderTemplate);
+        }
+    }
+
+    /// <summary>
+    /// Hides the dynamic column with the specified <paramref name="columnTitle"/> (matched case-insensitively against
+    /// <see cref="ColumnBase{TGridItem}.Title"/>) and re-renders the grid. The column remains in <see cref="Columns"/>
+    /// and can be re-shown via <see cref="ShowColumnAsync(string)"/>.
+    /// </summary>
+    /// <param name="columnTitle">The <see cref="ColumnBase{TGridItem}.Title"/> of the column to hide.</param>
+    /// <returns>A <see cref="Task"/> that completes when the grid has re-rendered.</returns>
+    /// <exception cref="InvalidOperationException">Thrown when <see cref="Columns"/> is <see langword="null"/>.</exception>
+    public async Task HideColumnAsync(string columnTitle)
+    {
+        if (Columns is null)
+        {
+            throw new InvalidOperationException("Column values are null");
+        }
+        DynamicColumn<TGridItem>? column = Columns.FirstOrDefault(column => string.Equals(column.Title, columnTitle, StringComparison.OrdinalIgnoreCase));
+        column?.Visible = false;
+        await InvokeAsync(StateHasChanged);
+        return;
+    }
+
+    /// <summary>
+    /// Shows a previously hidden dynamic column with the specified <paramref name="columnTitle"/> (matched
+    /// case-insensitively against <see cref="ColumnBase{TGridItem}.Title"/>) and re-renders the grid.
+    /// </summary>
+    /// <param name="columnTitle">The <see cref="ColumnBase{TGridItem}.Title"/> of the column to show.</param>
+    /// <returns>A <see cref="Task"/> that completes when the grid has re-rendered.</returns>
+    /// <exception cref="InvalidOperationException">Thrown when <see cref="Columns"/> is <see langword="null"/>.</exception>
+    public async Task ShowColumnAsync(string columnTitle)
+    {
+        if (Columns is null)
+        {
+            throw new InvalidOperationException("Column values are null");
+        }
+        DynamicColumn<TGridItem>? column = Columns.FirstOrDefault(column => string.Equals(column.Title, columnTitle, StringComparison.OrdinalIgnoreCase));
+        column?.Visible = true;
+        await InvokeAsync(StateHasChanged);
+        return;
     }
 }

@@ -1,8 +1,23 @@
 #nullable enable
+Microsoft.AspNetCore.Components.QuickGrid.DynamicColumn<TGridItem>
+Microsoft.AspNetCore.Components.QuickGrid.DynamicColumn<TGridItem>.Template.get -> Microsoft.AspNetCore.Components.RenderFragment?
+Microsoft.AspNetCore.Components.QuickGrid.DynamicColumn<TGridItem>.Template.set -> void
+Microsoft.AspNetCore.Components.QuickGrid.DynamicColumn<TGridItem>.DynamicColumn() -> void
+Microsoft.AspNetCore.Components.QuickGrid.DynamicColumn<TGridItem>.Property.get -> System.Linq.Expressions.Expression<System.Func<TGridItem, object?>!>?
+Microsoft.AspNetCore.Components.QuickGrid.DynamicColumn<TGridItem>.Property.set -> void
+Microsoft.AspNetCore.Components.QuickGrid.DynamicColumn<TGridItem>.Visible.get -> bool
+Microsoft.AspNetCore.Components.QuickGrid.DynamicColumn<TGridItem>.Visible.set -> void
+Microsoft.AspNetCore.Components.QuickGrid.QuickGrid<TGridItem>.Columns.get -> System.Collections.Generic.IEnumerable<Microsoft.AspNetCore.Components.QuickGrid.DynamicColumn<TGridItem>!>?
+Microsoft.AspNetCore.Components.QuickGrid.QuickGrid<TGridItem>.Columns.set -> void
+Microsoft.AspNetCore.Components.QuickGrid.QuickGrid<TGridItem>.HideColumnAsync(string! columnTitle) -> System.Threading.Tasks.Task!
 Microsoft.AspNetCore.Components.QuickGrid.QuickGrid<TGridItem>.QueryParameterNamePrefix.get -> string!
 Microsoft.AspNetCore.Components.QuickGrid.QuickGrid<TGridItem>.QueryParameterNamePrefix.set -> void
 Microsoft.AspNetCore.Components.QuickGrid.QuickGrid<TGridItem>.OnRowClick.get -> Microsoft.AspNetCore.Components.EventCallback<TGridItem>
 Microsoft.AspNetCore.Components.QuickGrid.QuickGrid<TGridItem>.OnRowClick.set -> void
+Microsoft.AspNetCore.Components.QuickGrid.QuickGrid<TGridItem>.ShowColumnAsync(string! columnTitle) -> System.Threading.Tasks.Task!
+override Microsoft.AspNetCore.Components.QuickGrid.DynamicColumn<TGridItem>.CellContent(Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder! builder, TGridItem item) -> void
+override Microsoft.AspNetCore.Components.QuickGrid.DynamicColumn<TGridItem>.SortBy.get -> Microsoft.AspNetCore.Components.QuickGrid.GridSort<TGridItem>?
+override Microsoft.AspNetCore.Components.QuickGrid.DynamicColumn<TGridItem>.SortBy.set -> void
 override Microsoft.AspNetCore.Components.QuickGrid.Paginator.OnInitialized() -> void
 override Microsoft.AspNetCore.Components.QuickGrid.Paginator.OnParametersSetAsync() -> System.Threading.Tasks.Task!
 override Microsoft.AspNetCore.Components.QuickGrid.QuickGrid<TGridItem>.OnInitialized() -> void
