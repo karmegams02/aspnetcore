@@ -68,6 +68,7 @@ internal sealed partial class MemoryCacheViewStore : ICacheViewStore
 
     private void StoreEntry(string key, SerializedRenderFragment payload, CacheStoreOptions options)
     {
+        var hasExpiration = false;
         try
         {
             var entryOptions = new MemoryCacheEntryOptions
@@ -77,16 +78,24 @@ internal sealed partial class MemoryCacheViewStore : ICacheViewStore
 
             if (options.ExpiresSliding.HasValue)
             {
+                hasExpiration = true;
                 entryOptions.SlidingExpiration = options.ExpiresSliding.Value;
             }
 
             if (options.ExpiresOn.HasValue)
             {
+                hasExpiration = true;
                 entryOptions.AbsoluteExpiration = options.ExpiresOn.Value;
             }
-            else
+
+            if (options.ExpiresAfter.HasValue)
             {
-                entryOptions.AbsoluteExpirationRelativeToNow = options.ExpiresAfter ?? RazorComponentsServiceOptions.DefaultCacheViewExpiration;
+                entryOptions.AbsoluteExpirationRelativeToNow = options.ExpiresAfter.Value;
+            }
+
+            if (!hasExpiration)
+            {
+                entryOptions.SlidingExpiration = RazorComponentsServiceOptions.DefaultCacheViewExpiration;
             }
 
             _cache.Set(key, payload, entryOptions);
