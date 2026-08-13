@@ -91,7 +91,7 @@ public class BrowserTestBase : IClassFixture<BrowserFixture>, IAsyncLifetime
             var (browser, logs) = BrowserFixture.GetOrCreateBrowser(Output, isolationContext);
             _asyncBrowser.Value = browser;
             _logs.Value = logs;
-
+            browser.Navigate().GoToUrl("about:blank");
             if (!_originalWindowSize.HasValue)
             {
                 _originalWindowSize = browser.Manage().Window.Size;
