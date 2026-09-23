@@ -1,6 +1,8 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using System.Text;
+using System.Text.Json;
 using Microsoft.AspNetCore.Components.Infrastructure;
 using Microsoft.AspNetCore.Components.RenderTree;
 using Microsoft.Extensions.DependencyInjection;
@@ -48,6 +50,35 @@ public class PersistentServicesRegistryTest
         // Assert
         var service = secondScope.GetRequiredService<TestService>();
         Assert.Equal(state, service.State);
+    }
+
+    [Fact]
+    public async Task PersistStateAsync_UsesConfiguredJsonSerializerOptions()
+    {
+        var componentRenderMode = new TestRenderMode();
+        var serviceProvider = new ServiceCollection()
+            .AddSingleton(new JsonSerializerOptions { PropertyNamingPolicy = null })
+            .AddScoped<CustomerService>()
+            .AddPersistentService<CustomerService>(componentRenderMode)
+            .BuildServiceProvider();
+
+        var scope = serviceProvider.CreateAsyncScope().ServiceProvider;
+        scope.GetRequiredService<CustomerService>().Customer = new Customer
+        {
+            Name = "John Doe",
+            Addresses = []
+        };
+
+        var persistenceManager = new ComponentStatePersistenceManager(
+            NullLogger<ComponentStatePersistenceManager>.Instance,
+            scope);
+        persistenceManager.SetPlatformRenderMode(componentRenderMode);
+        var testStore = new TestStore(new Dictionary<string, byte[]>());
+
+        await persistenceManager.RestoreStateAsync(new TestStore(new Dictionary<string, byte[]>()));
+        await persistenceManager.PersistStateAsync(testStore, new TestRenderer());
+
+        Assert.Contains(testStore.State.Values, value => Encoding.UTF8.GetString(value).Contains("\"Name\""));
     }
 
     [Fact]

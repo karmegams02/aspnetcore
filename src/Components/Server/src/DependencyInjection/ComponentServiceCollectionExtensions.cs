@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Diagnostics.CodeAnalysis;
+using System.Text.Json;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Endpoints;
@@ -39,6 +40,18 @@ public static class ComponentServiceCollectionExtensions
         var builder = new DefaultServerSideBlazorBuilder(services);
 
         services.AddDataProtection();
+        services.TryAddScoped<JsonSerializerOptions>(sp =>
+        {
+            var circuitOptions = sp.GetRequiredService<IOptions<CircuitOptions>>().Value;
+            var options = new JsonSerializerOptions(JsonSerializerOptionsProvider.Options);
+#pragma warning disable ASPNETCORE9004 // The framework implements this experimental extension point.
+            for (var i = circuitOptions.JsonTypeInfoResolvers.Count - 1; i >= 0; i--)
+            {
+                options.TypeInfoResolverChain.Insert(0, circuitOptions.JsonTypeInfoResolvers[i]);
+            }
+#pragma warning restore ASPNETCORE9004
+            return options;
+        });
 
         services.TryAddScoped<ProtectedBrowserStorageJsonSerializerOptions>();
         services.TryAddScoped(static services => new ProtectedLocalStorage(
