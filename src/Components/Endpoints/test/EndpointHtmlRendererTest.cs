@@ -1463,6 +1463,38 @@ public class EndpointHtmlRendererTest
     }
 
     [Fact]
+    public async Task StaticHeadOutlet_InteractivePageTitle_DoesNotWarnDuringPrerendering()
+    {
+        var sink = new TestSink();
+        var renderer = GetEndpointHtmlRenderer(loggerFactory: new TestLoggerFactory(sink, enabled: true));
+        var httpContext = GetHttpContext();
+
+        var outlet = await renderer.PrerenderComponentAsync(httpContext, typeof(HeadOutlet), null, ParameterView.Empty);
+        await renderer.PrerenderComponentAsync(httpContext, typeof(PageTitleTestComponent), RenderMode.InteractiveServer, ParameterView.Empty);
+
+        Assert.Equal("<title>Counter</title>", await renderer.Dispatcher.InvokeAsync(() => HtmlContentToString(outlet)));
+        var write = Assert.Single(sink.Writes.Where(w => w.EventId.Name == "SectionRenderModeMismatch"));
+        Assert.Equal(LogLevel.Debug, write.LogLevel);
+        Assert.Contains("'PageTitle/HeadOutlet'", write.Message);
+        Assert.Contains("static server-side rendering", write.Message);
+        Assert.Contains(nameof(InteractiveServerRenderMode), write.Message);
+        Assert.Contains("Prerendered content may appear correctly", write.Message);
+        Assert.Contains("interactive updates cannot cross the render mode boundary", write.Message);
+        Assert.Contains("same render mode", write.Message);
+        Assert.Contains("static component tree", write.Message);
+    }
+
+    private sealed class PageTitleTestComponent : ComponentBase
+    {
+        protected override void BuildRenderTree(RenderTreeBuilder builder)
+        {
+            builder.OpenComponent<PageTitle>(0);
+            builder.AddComponentParameter(1, nameof(PageTitle.ChildContent), (RenderFragment)(contentBuilder => contentBuilder.AddContent(0, "Counter")));
+            builder.CloseComponent();
+        }
+    }
+
+    [Fact]
     public async Task DoesNotEmitNestedRenderModeBoundaries()
     {
         // Arrange
