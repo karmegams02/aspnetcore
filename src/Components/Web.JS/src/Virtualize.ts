@@ -154,6 +154,7 @@ function init(dotNetHelper: DotNet.DotNetObject, spacerBefore: HTMLElement, spac
   // Observe only the two spacers we already hold references to. Placeholders are siblings between them,
   // so on each spacer mutation we walk the sibling chain to reapply styles.
   const mutationObserver = new MutationObserver(() => {
+    suppressAnchoringForScrollRender();
     applyLayoutAttrsBetweenSpacers();
     if (restoreAnchorOnMutation) {
       restoreAnchorOnMutation = false;
@@ -163,12 +164,13 @@ function init(dotNetHelper: DotNet.DotNetObject, spacerBefore: HTMLElement, spac
 
   function flushPendingStyleMutations(): void {
     if (mutationObserver.takeRecords().length > 0) {
+      suppressAnchoringForScrollRender();
       applyLayoutAttrsBetweenSpacers();
     }
   }
   const spacerObserverOptions: MutationObserverInit = {
     attributes: true,
-    attributeFilter: layoutAttrNames,
+    attributeFilter: [...layoutAttrNames, 'data-blazor-virtualize-loading'],
   };
   mutationObserver.observe(spacerBefore, spacerObserverOptions);
   mutationObserver.observe(spacerAfter, spacerObserverOptions);
@@ -193,9 +195,11 @@ function init(dotNetHelper: DotNet.DotNetObject, spacerBefore: HTMLElement, spac
 
   const nativeAnchoring = {
     suspendedFor: new Set<'convergence' | 'slide'>(),
+    resumeFrame: 0,
     suspend(reason: 'convergence' | 'slide'): void {
       this.suspendedFor.add(reason);
       if (useNativeAnchoring) {
+        cancelAnimationFrame(this.resumeFrame);
         scrollElement.style.overflowAnchor = 'none';
       }
     },
@@ -204,13 +208,29 @@ function init(dotNetHelper: DotNet.DotNetObject, spacerBefore: HTMLElement, spac
         return;
       }
       if (useNativeAnchoring && this.suspendedFor.size === 0) {
-        scrollElement.style.overflowAnchor = '';
+        // Keep suppression through the frame that lays out the redistributed rows.
+        this.resumeFrame = requestAnimationFrame(() => {
+          this.resumeFrame = requestAnimationFrame(() => {
+            this.resumeFrame = 0;
+            scrollElement.style.overflowAnchor = '';
+          });
+        });
       }
     },
   };
 
   const anchoredItems: Map<Element, number> = new Map();
   let scrollTriggeredRender = false;
+  let scrollTriggeredLoading = false;
+
+  function suppressAnchoringForScrollRender(): void {
+    if (useNativeAnchoring && (scrollTriggeredRender || scrollTriggeredLoading)) {
+      // Loading rows can arrive before OnAfterRender's interop call on Server.
+      nativeAnchoring.suspend('slide');
+      nativeAnchoring.resume('slide');
+      scrollTriggeredLoading = spacerBefore.hasAttribute('data-blazor-virtualize-loading');
+    }
+  }
 
   const scrollActivity = {
     source: ScrollSource.None as ScrollSource,
@@ -390,6 +410,7 @@ function init(dotNetHelper: DotNet.DotNetObject, spacerBefore: HTMLElement, spac
   resizeObserver.observe(spacerAfter);
 
   function refreshObservedElements(isLoading: boolean, refreshViewport: boolean): void {
+    suppressAnchoringForScrollRender();
     if (refreshViewport) {
       pendingCallbacks.clear();
       reobserveSpacers();
@@ -829,6 +850,10 @@ function init(dotNetHelper: DotNet.DotNetObject, spacerBefore: HTMLElement, spac
       cancelPendingUserScrollObservation();
       mutationObserver.disconnect();
       stopConvergenceObserving();
+      cancelAnimationFrame(nativeAnchoring.resumeFrame);
+      if (useNativeAnchoring) {
+        scrollElement.style.overflowAnchor = '';
+      }
       anchoredItems.clear();
       resizeObserver.disconnect();
       unsubscribeFromUserScroll();

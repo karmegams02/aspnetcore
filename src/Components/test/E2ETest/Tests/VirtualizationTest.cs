@@ -40,6 +40,40 @@ public class VirtualizationTest : ServerTestBase<ToggleExecutionModeServerFixtur
         => container.FindElements(By.CssSelector(cssSelector)).Count;
 
     [Fact]
+    public void HoveredRows_AsyncScrollDoesNotJump()
+    {
+        Browser.MountTestComponent<VirtualizationHover>();
+        var container = Browser.Exists(By.Id("hover-container"));
+        var js = (IJavaScriptExecutor)Browser;
+
+        Browser.Equal(38000L, () => (long)js.ExecuteScript("return arguments[0].scrollHeight", container));
+        WaitForRenderToSettle(container, js, ".hover-row");
+        Browser.Exists(By.Id("pause-hover-loads")).Click();
+        Browser.Equal("Paused", () => Browser.Exists(By.Id("hover-load-status")).Text);
+
+        var origin = new WheelInputDevice.ScrollOrigin { Element = container };
+        new Actions(Browser)
+            .MoveToElement(container)
+            .ScrollFromOrigin(origin, 0, 200)
+            .Pause(TimeSpan.FromMilliseconds(60))
+            .ScrollFromOrigin(origin, 0, 200)
+            .Pause(TimeSpan.FromMilliseconds(60))
+            .ScrollFromOrigin(origin, 0, 200)
+            .Perform();
+
+        Browser.Exists(By.CssSelector("#hover-container .hover-placeholder"));
+        WaitForRenderToSettle(container, js, ".hover-row");
+        Assert.Equal(600L, (long)js.ExecuteScript("return arguments[0].scrollTop", container));
+
+        // Keep the pointer over the rows while the pending provider renders its result.
+        Browser.Exists(By.Id("release-hover-loads")).SendKeys(Keys.Enter);
+        Browser.Equal("Running", () => Browser.Exists(By.Id("hover-load-status")).Text);
+        Browser.Equal(0, () => GetElementCount(container, ".hover-placeholder"));
+        WaitForRenderToSettle(container, js, ".hover-row");
+        Assert.Equal(600L, (long)js.ExecuteScript("return arguments[0].scrollTop", container));
+    }
+
+    [Fact]
     public void AlwaysFillsVisibleCapacity_Sync()
     {
         Browser.MountTestComponent<VirtualizationComponent>();
